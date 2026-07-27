@@ -95,6 +95,24 @@ npm run dev
 O Vite ja proxeia `/api` para `http://localhost:3333` (configuravel via
 `VITE_API_PROXY_TARGET`).
 
+### Instalador Windows (single-PC, sem Docker/Node/Postgres manual)
+
+Para instalar em um unico computador Windows sem precisar configurar nada
+manualmente (uso tipico: um posto de impressao de etiquetas isolado, sem
+outros PCs acessando pela rede), existe um instalador `.exe` que empacota
+Node.js, PostgreSQL e a aplicacao, e registra tudo como Servico do Windows
+(inicia sozinho com o computador).
+
+Ele e gerado automaticamente pelo GitHub Actions (nao ha binario pronto no
+repositorio): va em **Actions -> Build Windows Installer -> Run workflow**,
+espere terminar e baixe o artefato `EtiquetasPedidosSetup`. Detalhes de como
+ele e montado e o que a instalacao faz estao em `windows-installer/README.md`.
+
+> Esse instalador ainda nao foi validado numa maquina Windows real (foi
+> construido e revisado aqui, mas sem acesso a um ambiente Windows para
+> testar o `.exe` final). Se algo falhar na instalacao, me mande a mensagem
+> de erro (ou os logs em `C:\ProgramData\EtiquetasPedidos\logs`) que eu ajusto.
+
 ## Niveis de acesso
 
 | Nivel          | Permissoes                                              |

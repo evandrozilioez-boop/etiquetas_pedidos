@@ -1,0 +1,119 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - "claude/**"
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "windows-installer/**"
+      - ".github/workflows/build-windows-installer.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ---- Backend: build TypeScript, generate Prisma client (Windows engine), keep only prod deps ----
+      - name: Backend - install deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Backend - prisma generate
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Backend - build
+        working-directory: backend
+        run: npm run build
+
+      - name: Backend - strip devDependencies (keep generated Prisma client)
+        working-directory: backend
+        run: npm prune --omit=dev
+
+      # ---- Frontend: static production build ----
+      - name: Frontend - install deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend - build
+        working-directory: frontend
+        run: npm run build
+
+      # ---- Download portable runtimes bundled into the installer ----
+      - name: Download portable Node.js
+        shell: pwsh
+        run: |
+          $ver = "20.18.1"
+          $url = "https://nodejs.org/dist/v$ver/node-v$ver-win-x64.zip"
+          Invoke-WebRequest -Uri $url -OutFile node.zip
+          Expand-Archive -Path node.zip -DestinationPath node-extracted
+          New-Item -ItemType Directory -Force -Path windows-installer\build\node | Out-Null
+          Copy-Item -Path "node-extracted\node-v$ver-win-x64\*" -Destination windows-installer\build\node -Recurse
+
+      - name: Download portable PostgreSQL
+        shell: pwsh
+        run: |
+          # Distribuicao "binaries only" oficial da EDB (mesma listada em
+          # postgresql.org/download/windows -> aba Binaries). Se esta versao
+          # sair do ar, atualize para uma tag disponivel em
+          # https://www.enterprisedb.com/download-postgresql-binaries
+          $ver = "16.4-1"
+          $url = "https://get.enterprisedb.com/postgresql/postgresql-$ver-windows-x64-binaries.zip"
+          Invoke-WebRequest -Uri $url -OutFile pgsql.zip
+          Expand-Archive -Path pgsql.zip -DestinationPath pgsql-extracted
+          New-Item -ItemType Directory -Force -Path windows-installer\build\pgsql | Out-Null
+          Copy-Item -Path "pgsql-extracted\pgsql\*" -Destination windows-installer\build\pgsql -Recurse
+
+      - name: Download NSSM (Windows service manager)
+        shell: pwsh
+        run: |
+          $url = "https://nssm.cc/release/nssm-2.24.zip"
+          Invoke-WebRequest -Uri $url -OutFile nssm.zip
+          Expand-Archive -Path nssm.zip -DestinationPath nssm-extracted
+          New-Item -ItemType Directory -Force -Path windows-installer\build\nssm | Out-Null
+          Copy-Item -Path "nssm-extracted\nssm-2.24\win64\nssm.exe" -Destination windows-installer\build\nssm\nssm.exe
+
+      # ---- Assemble the payload the installer copies to Program Files ----
+      - name: Assemble backend payload
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path windows-installer\build\backend | Out-Null
+          Copy-Item -Path backend\dist -Destination windows-installer\build\backend\dist -Recurse
+          Copy-Item -Path backend\node_modules -Destination windows-installer\build\backend\node_modules -Recurse
+          Copy-Item -Path backend\package.json -Destination windows-installer\build\backend\package.json
+          Copy-Item -Path backend\prisma -Destination windows-installer\build\backend\prisma -Recurse
+          Copy-Item -Path backend\scripts -Destination windows-installer\build\backend\scripts -Recurse
+
+      - name: Assemble frontend payload
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path windows-installer\build\frontend | Out-Null
+          Copy-Item -Path frontend\dist\* -Destination windows-installer\build\frontend -Recurse
+
+      # ---- Compile the installer ----
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "windows-installer\installer.iss"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EtiquetasPedidosSetup
+          path: windows-installer\dist\EtiquetasPedidosSetup.exe
+          if-no-files-found: error

@@ -3,6 +3,6 @@ import { env } from "./config/env";
 
 const app = createApp();
 
-app.listen(env.port, () => {
-  console.log(`API de etiquetas de pedidos rodando na porta ${env.port}`);
+app.listen(env.port, env.host, () => {
+  console.log(`API de etiquetas de pedidos rodando em ${env.host}:${env.port}`);
 });
