@@ -113,7 +113,12 @@ export function Pedidos() {
                   <IconButton
                     size="small"
                     color="primary"
-                    disabled={params.row.status === "IMPRESSO" || params.row.status === "REIMPRESSO" || params.row.status === "CANCELADO"}
+                    disabled={
+                      params.row.status === "IMPRESSO" ||
+                      params.row.status === "REIMPRESSO" ||
+                      params.row.status === "EXPEDIDO" ||
+                      params.row.status === "CANCELADO"
+                    }
                     onClick={() => handleImprimir(params.row.id, false)}
                   >
                     <PrintIcon fontSize="small" />
@@ -125,7 +130,11 @@ export function Pedidos() {
                   <IconButton
                     size="small"
                     color="secondary"
-                    disabled={params.row.status !== "IMPRESSO" && params.row.status !== "REIMPRESSO"}
+                    disabled={
+                      params.row.status !== "IMPRESSO" &&
+                      params.row.status !== "REIMPRESSO" &&
+                      params.row.status !== "EXPEDIDO"
+                    }
                     onClick={() => handleImprimir(params.row.id, true)}
                   >
                     <ReplayIcon fontSize="small" />

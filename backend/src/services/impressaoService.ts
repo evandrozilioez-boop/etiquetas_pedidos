@@ -27,7 +27,8 @@ export async function imprimirPedido(params: ImprimirParams) {
     throw new AppError("Pedido cancelado nao pode ser impresso", 409);
   }
 
-  const jaImpresso = pedido.status === "IMPRESSO" || pedido.status === "REIMPRESSO";
+  const jaImpresso =
+    pedido.status === "IMPRESSO" || pedido.status === "REIMPRESSO" || pedido.status === "EXPEDIDO";
   if (jaImpresso && !reimpressao) {
     throw new AppError("Pedido ja impresso. Utilize a opcao de reimpressao.", 409);
   }

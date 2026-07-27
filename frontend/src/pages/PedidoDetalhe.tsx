@@ -68,7 +68,8 @@ export function PedidoDetalhePage() {
 
   if (!pedido) return null;
 
-  const jaImpresso = pedido.status === "IMPRESSO" || pedido.status === "REIMPRESSO";
+  const jaImpresso =
+    pedido.status === "IMPRESSO" || pedido.status === "REIMPRESSO" || pedido.status === "EXPEDIDO";
 
   return (
     <Box>
