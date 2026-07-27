@@ -1,0 +1,150 @@
+// Schema do banco de dados - PostgreSQL
+// O banco e a unica fonte da verdade: nenhum estado de impressao e mantido em memoria/cache.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NivelUsuario {
+  ADMINISTRADOR
+  OPERADOR
+  CONSULTA
+}
+
+enum StatusPedido {
+  AGUARDANDO_IMPRESSAO
+  EM_IMPRESSAO
+  IMPRESSO
+  REIMPRESSO
+  CANCELADO
+  EXPEDIDO
+}
+
+enum AcaoHistorico {
+  IMPORTACAO
+  ATUALIZACAO
+  IMPRESSAO
+  REIMPRESSAO
+  ERRO_IMPRESSAO
+  CANCELAMENTO
+  EXPEDICAO
+  LOGIN
+  LOGOUT
+  CRIACAO_USUARIO
+  ATUALIZACAO_USUARIO
+}
+
+enum ResultadoImpressao {
+  SUCESSO
+  ERRO
+}
+
+enum OrigemImportacao {
+  EXCEL
+  CSV
+  API
+  ZPL
+}
+
+model Usuario {
+  id         String        @id @default(uuid())
+  nome       String
+  login      String        @unique
+  senhaHash  String
+  nivel      NivelUsuario  @default(OPERADOR)
+  ativo      Boolean       @default(true)
+  criadoEm   DateTime      @default(now())
+  atualizadoEm DateTime    @updatedAt
+
+  impressoes Impressao[]
+  historicos Historico[]
+
+  @@map("usuarios")
+}
+
+model Pedido {
+  id              String   @id @default(uuid())
+
+  pedido          String
+  oc              String?
+  produto         String?
+  descricao       String?
+  cliente         String?
+  cidade          String?
+  estado          String?
+  cep             String?
+  volume          String?
+  quantidade      Int?
+  transportadora  String?
+  marketplace     String?
+  codigoBarras    String?
+  qrCode          String?
+  zplOriginal     String   @db.Text
+
+  // hash SHA256 do conteudo da etiqueta - evita duplicacao na reimportacao
+  hash            String   @unique
+
+  status          StatusPedido @default(AGUARDANDO_IMPRESSAO)
+  origemImportacao OrigemImportacao @default(EXCEL)
+
+  dataImportacao  DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+
+  impressoes      Impressao[]
+  historicos      Historico[]
+
+  @@index([pedido])
+  @@index([oc])
+  @@index([status])
+  @@index([cliente])
+  @@index([cidade])
+  @@index([estado])
+  @@index([marketplace])
+  @@index([dataImportacao])
+  @@map("pedidos")
+}
+
+model Impressao {
+  id          String             @id @default(uuid())
+  pedidoId    String
+  pedido      Pedido             @relation(fields: [pedidoId], references: [id])
+
+  usuarioId   String?
+  usuario     Usuario?           @relation(fields: [usuarioId], references: [id])
+
+  dataHora    DateTime           @default(now())
+  impressora  String?
+  ipMaquina   String?
+  copias      Int                @default(1)
+  resultado   ResultadoImpressao
+  mensagemErro String?           @db.Text
+
+  @@index([pedidoId])
+  @@index([usuarioId])
+  @@index([dataHora])
+  @@map("impressoes")
+}
+
+model Historico {
+  id        String        @id @default(uuid())
+
+  pedidoId  String?
+  pedido    Pedido?       @relation(fields: [pedidoId], references: [id])
+
+  acao      AcaoHistorico
+  usuarioId String?
+  usuario   Usuario?      @relation(fields: [usuarioId], references: [id])
+
+  dataHora  DateTime      @default(now())
+  detalhes  String?       @db.Text
+
+  @@index([pedidoId])
+  @@index([acao])
+  @@index([dataHora])
+  @@map("historico")
+}
