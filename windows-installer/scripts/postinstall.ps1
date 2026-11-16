@@ -117,34 +117,19 @@ Write-Host "==> Criando usuario administrador padrao (se necessario)..."
 & $NodeExe (Join-Path $InstallDir "backend\scripts\seed.cjs") | Write-Host
 
 Write-Host "==> Registrando servico do backend..."
-# IMPORTANTE: nao envolver os caminhos em aspas manualmente aqui. O
-# PowerShell ja passa cada variavel como um unico argumento para o nssm.exe
-# (preservando espacos, ex.: "C:\Program Files\..."). Adicionar aspas
-# literais dentro da string faz o NSSM guardar essas aspas como parte do
-# parametro e quebrar o parsing da linha de comando ao iniciar o node.exe -
-# o processo falha com "Cannot find module 'C:\Program'".
-$ServerScript = Join-Path $InstallDir "backend\dist\server.js"
-$BackendDir = Join-Path $InstallDir "backend"
-
 $existingApp = Get-Service -Name $AppServiceName -ErrorAction SilentlyContinue
 if (-not $existingApp) {
-    & $Nssm install $AppServiceName $NodeExe $ServerScript | Out-Null
-}
-# Reaplica a configuracao sempre (novo install ou reparo de uma instalacao
-# anterior com parametros corrompidos).
-& $Nssm set $AppServiceName AppParameters $ServerScript | Out-Null
-& $Nssm set $AppServiceName AppDirectory $BackendDir | Out-Null
-& $Nssm set $AppServiceName Start SERVICE_AUTO_START | Out-Null
-& $Nssm set $AppServiceName AppStdout (Join-Path $LogDir "backend.log") | Out-Null
-& $Nssm set $AppServiceName AppStderr (Join-Path $LogDir "backend-error.log") | Out-Null
-& $Nssm set $AppServiceName AppRotateFiles 1 | Out-Null
-& $Nssm set $AppServiceName AppRotateOnline 1 | Out-Null
-& $Nssm set $AppServiceName AppRotateBytes 5242880 | Out-Null
-
-if ($existingApp) {
-    & $Nssm restart $AppServiceName | Out-Null
+    & $Nssm install $AppServiceName $NodeExe "`"$(Join-Path $InstallDir 'backend\dist\server.js')`"" | Out-Null
+    & $Nssm set $AppServiceName AppDirectory (Join-Path $InstallDir "backend") | Out-Null
+    & $Nssm set $AppServiceName Start SERVICE_AUTO_START | Out-Null
+    & $Nssm set $AppServiceName AppStdout (Join-Path $LogDir "backend.log") | Out-Null
+    & $Nssm set $AppServiceName AppStderr (Join-Path $LogDir "backend-error.log") | Out-Null
+    & $Nssm set $AppServiceName AppRotateFiles 1 | Out-Null
+    & $Nssm set $AppServiceName AppRotateOnline 1 | Out-Null
+    & $Nssm set $AppServiceName AppRotateBytes 5242880 | Out-Null
 } else {
-    Start-Service -Name $AppServiceName -ErrorAction SilentlyContinue
+    & $Nssm restart $AppServiceName | Out-Null
 }
+Start-Service -Name $AppServiceName -ErrorAction SilentlyContinue
 
 Write-Host "==> Instalacao concluida. Acesse http://localhost:3333"
