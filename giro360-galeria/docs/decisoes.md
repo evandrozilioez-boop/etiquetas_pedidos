@@ -39,3 +39,25 @@ Registro das decisões tomadas com a Giro 360. Elas substituem o que o pedido or
 3. Uso de imagem para divulgação no portfólio (por captura).
 
 Os textos dos termos precisam de revisão jurídica da Giro antes do uso com convidados reais.
+
+## Envio pelo iPhone
+
+Os vídeos da Plataforma 360 ficam no app Fotos do iPhone e são enviados tanto no 4G quanto no Wi-Fi.
+
+**Etapa 1 (agora): painel de envio pelo Safari**, adicionável à tela de início.
+- Escolha de vários vídeos e fotos direto do app Fotos.
+- Formatos aceitos ampliados: **MOV e MP4 (H.264 e HEVC)** e **JPEG, PNG e HEIC**. O original é guardado
+  como veio; a prévia leve para o celular é convertida para MP4 H.264 no processamento.
+- Envio em partes de 16 MB com retomada; opção de manter a tela ligada (Wake Lock).
+- Limitações do iOS no navegador: o envio pausa ao bloquear a tela ou trocar de app (retoma ao voltar),
+  e o Safari não informa se a conexão é 4G ou Wi-Fi, então não há "enviar só no Wi-Fi".
+- A verificar no primeiro teste real: se o Safari entrega o vídeo original do app Fotos ou uma versão
+  recomprimida. Se recomprimir, o app nativo passa a ser obrigatório para manter a qualidade original.
+
+**Etapa 2: app iOS "Giro 360 Envio"** (só envio, usa a mesma API do painel).
+- Envio em segundo plano com a tela bloqueada, fila que sobrevive a fechar o app,
+  "Compartilhar → Giro 360" no app Fotos e opção de enviar vídeos só no Wi-Fi.
+- Compilado na nuvem (Expo/EAS), sem precisar de Mac; distribuído pelo TestFlight ou como app não listado.
+- **Pré-requisito: conta Apple Developer da Giro** (cerca de US$ 99/ano). A Giro ainda não tem.
+  Para conta de empresa a Apple exige o número D-U-N-S da empresa (gratuito, pode levar alguns dias),
+  site e e-mail com o domínio da empresa.
