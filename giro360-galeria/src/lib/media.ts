@@ -4,7 +4,7 @@ import { ACCEPTED_TYPES, config, type AcceptedType } from "./config";
 import { q, q1, tx, type Tx } from "./db";
 import { HttpError } from "./http";
 import { enqueue } from "./queue";
-import { eventPhase, getEvent } from "./events";
+import { faceOpen, getEvent, type EventRow } from "./events";
 import { audit } from "./audit";
 import * as storage from "./storage";
 
@@ -33,6 +33,8 @@ export type MediaRow = {
   published: boolean;
   consent_status: "pending" | "granted_all" | "denied";
   consent_note: string | null;
+  image_use: boolean;
+  highlight: boolean;
   face_status: "off" | "queued" | "indexing" | "indexed" | "no_faces" | "failed";
   face_count: number;
   face_error: string | null;
@@ -83,12 +85,9 @@ export type UploadPlan =
  */
 export async function initUpload(eventId: string, raw: z.input<typeof initUploadInput>, adminId: string): Promise<UploadPlan> {
   const input = initUploadInput.parse(raw);
-  const event = await getEvent(eventId);
-  if (eventPhase(event) !== "active") {
-    throw new HttpError(409, "Este evento está encerrado ou expirado. Reabra-o para enviar arquivos.", "event_not_active");
-  }
+  await getEvent(eventId);
   const type = ACCEPTED_TYPES[input.contentType as AcceptedType];
-  if (!type) throw new HttpError(415, `Formato não aceito (${input.contentType || "desconhecido"}). Use JPEG, PNG ou MP4.`, "bad_type");
+  if (!type) throw new HttpError(415, `Formato não aceito (${input.contentType || "desconhecido"}). Use JPEG, PNG, MP4 ou MOV.`, "bad_type");
   const maxMb = type.kind === "photo" ? config().UPLOAD_MAX_PHOTO_MB : config().UPLOAD_MAX_VIDEO_MB;
   if (input.size > maxMb * 1024 * 1024) {
     throw new HttpError(413, `Arquivo acima do limite de ${maxMb} MB para ${type.kind === "photo" ? "fotos" : "vídeos"}.`, "too_large");
@@ -264,7 +263,7 @@ export async function retryFailed(eventId: string, mediaIds: string[] | "all", a
         result.needsReupload++;
       }
     } else if (m.face_status === "failed") {
-      await queueIndexing(m.id);
+      await queueIndexing(m.id, eventId);
       result.reindexing++;
     }
   }
@@ -272,11 +271,11 @@ export async function retryFailed(eventId: string, mediaIds: string[] | "all", a
   return result;
 }
 
-export async function queueIndexing(mediaId: string, client: Tx | null = null) {
+export async function queueIndexing(mediaId: string, eventId: string, client: Tx | null = null) {
   const sql = "update media set face_status='queued', face_error=null, updated_at=now() where id=$1";
   if (client) await client.query(sql, [mediaId]);
   else await q(sql, [mediaId]);
-  await enqueue("index_faces", { mediaId }, { dedupeKey: `index:${mediaId}`, maxAttempts: 4 }, client);
+  await enqueue("index_faces", { mediaId, eventId }, { dedupeKey: `index:${mediaId}`, maxAttempts: 4 }, client);
 }
 
 /** Retira referências faciais da mídia: do banco (efeito imediato na busca) e do provedor (tarefa com repetição). */
@@ -295,10 +294,10 @@ export async function removeFaces(c: Tx, mediaId: string, eventId: string) {
 }
 
 export function isEligibleForIndex(
-  e: { face_search_enabled: boolean },
+  e: Pick<EventRow, "face_search_enabled" | "face_until" | "face_purged_at">,
   m: Pick<MediaRow, "published" | "status" | "consent_status">,
 ) {
-  return e.face_search_enabled && m.published && m.status === "ready" && m.consent_status === "granted_all";
+  return faceOpen(e) && m.published && m.status === "ready" && m.consent_status === "granted_all";
 }
 
 export async function setPublished(eventId: string, mediaIds: string[], published: boolean, adminId: string) {
@@ -315,8 +314,9 @@ export async function setPublished(eventId: string, mediaIds: string[], publishe
       if (!published) {
         await removeFaces(c, id, eventId);
         await c.query("update share_links set revoked_at = coalesce(revoked_at, now()) where media_id=$1", [id]);
+        await c.query("update media set highlight=false where id=$1", [id]);
       } else if (isEligibleForIndex(event, m)) {
-        await queueIndexing(id, c);
+        await queueIndexing(id, eventId, c);
       }
     }
   });
@@ -353,11 +353,37 @@ export async function setConsent(
       }
       if (status !== "granted_all") await removeFaces(c, id, eventId);
       else if (isEligibleForIndex(event, m) && !["indexed", "no_faces", "queued", "indexing"].includes(m.face_status)) {
-        await queueIndexing(id, c);
+        await queueIndexing(id, eventId, c);
       }
     }
   });
   await audit(adminId, "media.consent", { eventId, details: { mediaIds, status, consentIds } });
+}
+
+/** Autorização de uso de imagem para divulgação (portfólio). Revogar retira o destaque. */
+export async function setImageUse(eventId: string, mediaIds: string[], granted: boolean, note: string | null, adminId: string) {
+  if (granted && !note?.trim()) throw new HttpError(400, "Descreva a autorização de uso de imagem registrada.");
+  await q(
+    `update media set image_use=$3, image_use_note=$4, image_use_set_by=$5, image_use_set_at=now(),
+       highlight = case when $3 then highlight else false end, updated_at=now()
+     where event_id=$1 and id = any($2)`,
+    [eventId, mediaIds, granted, granted ? note : null, adminId],
+  );
+  await audit(adminId, granted ? "media.image_use_grant" : "media.image_use_revoke", { eventId, details: { mediaIds } });
+}
+
+export async function setHighlight(eventId: string, mediaIds: string[], highlight: boolean, adminId: string) {
+  if (highlight) {
+    const blocked = await q1<{ n: string }>(
+      "select count(*) as n from media where event_id=$1 and id = any($2) and (not image_use or not published or status <> 'ready')",
+      [eventId, mediaIds],
+    );
+    if (Number(blocked?.n) > 0) {
+      throw new HttpError(409, "Só é possível destacar mídias publicadas, prontas e com autorização de uso de imagem.", "no_image_use");
+    }
+  }
+  await q("update media set highlight=$3, updated_at=now() where event_id=$1 and id = any($2)", [eventId, mediaIds, highlight]);
+  await audit(adminId, highlight ? "media.highlight" : "media.unhighlight", { eventId, details: { mediaIds } });
 }
 
 /** Exclusão definitiva (ex.: pedido de remoção): original, derivados, referências faciais e links. */
@@ -387,6 +413,8 @@ export type MediaListItem = {
   duplicateOf: string | null;
   published: boolean;
   consentStatus: MediaRow["consent_status"];
+  imageUse: boolean;
+  highlight: boolean;
   faceStatus: MediaRow["face_status"];
   faceCount: number;
   durationSec: number | null;
@@ -408,6 +436,8 @@ export async function toListItem(m: MediaRow): Promise<MediaListItem> {
     duplicateOf: m.duplicate_of,
     published: m.published,
     consentStatus: m.consent_status,
+    imageUse: m.image_use,
+    highlight: m.highlight,
     faceStatus: m.face_status,
     faceCount: m.face_count,
     durationSec: m.duration_sec ? Number(m.duration_sec) : null,
@@ -436,7 +466,7 @@ export function decodeCursor(c: string | null): { at: string; id: string } | nul
 
 export async function listMediaAdmin(
   eventId: string,
-  opts: { cursor?: string | null; limit?: number; filter?: string | null },
+  opts: { cursor?: string | null; limit?: number; filter?: string | null; ids?: string[] },
 ) {
   const limit = Math.min(100, opts.limit ?? 48);
   const cur = decodeCursor(opts.cursor ?? null);
@@ -452,6 +482,11 @@ export async function listMediaAdmin(
   if (f === "failed") where += " and (status='failed' or face_status='failed')";
   if (f === "unpublished") where += " and published=false";
   if (f === "consent_pending") where += " and consent_status='pending'";
+  if (f === "highlight") where += " and highlight";
+  if (opts.ids) {
+    params.push(opts.ids);
+    where += ` and id = any($${params.length}::uuid[])`;
+  }
   const rows = await q<MediaRow>(`select * from media where ${where} order by created_at desc, id desc limit $2`, params);
   const page = rows.slice(0, limit);
   return {

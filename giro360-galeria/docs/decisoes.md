@@ -61,3 +61,12 @@ Os vídeos da Plataforma 360 ficam no app Fotos do iPhone e são enviados tanto 
 - **Pré-requisito: conta Apple Developer da Giro** (cerca de US$ 99/ano). A Giro ainda não tem.
   Para conta de empresa a Apple exige o número D-U-N-S da empresa (gratuito, pode levar alguns dias),
   site e e-mail com o domínio da empresa.
+
+## Implementação (registro)
+
+- Fotos HEIC do iPhone: o seletor do Safari converte para JPEG ao enviar (o campo aceita só JPEG/PNG/MP4/MOV),
+  então o servidor não precisa decodificar HEIC.
+- Vídeos MOV/HEVC são aceitos e guardados como vieram; a prévia é sempre MP4 H.264 (até 720p) para tocar em qualquer celular.
+- O site pode ir ao ar sem IA (`FACE_PROVIDER=none`): galeria, QR individual, downloads, portfólio e envio funcionam;
+  a busca por selfie aparece como indisponível.
+- A logo oficial está incluída em `public/brand/`; uma logo enviada em Configurações tem prioridade.

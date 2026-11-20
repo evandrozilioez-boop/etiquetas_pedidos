@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start -p ${PORT:-3000}",
     "worker": "tsx src/worker/index.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "storage:setup": "tsx scripts/setup-storage.ts",
@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration"
+    "test:integration": "vitest run tests/integration",
+    "start:web": "npm run db:migrate && next start -p ${PORT:-3000}"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1173.0",
@@ -43,5 +44,8 @@
     "@types/react-dom": "^19.3.0",
     "typescript": "5.9",
     "vitest": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=20.11"
   }
 }

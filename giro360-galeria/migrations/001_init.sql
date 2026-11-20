@@ -28,15 +28,14 @@ create table events (
   is_private boolean not null default true,
   access_code text,
   allow_full_browse boolean not null default false,
+  -- Acesso dos convidados (busca, álbum, download, QR individual). A galeria em si nunca sai do ar.
+  access_until timestamptz not null,
+  -- Busca facial: ligada pela produção e limitada a N dias após o evento; depois o índice é apagado.
   face_search_enabled boolean not null default false,
+  face_until timestamptz not null,
   face_collection_id text,
-  retention_days integer not null default 90,
-  expires_at timestamptz not null,
-  status text not null default 'active' check (status in ('active', 'closed')),
-  closed_at timestamptz,
-  purge_status text not null default 'none' check (purge_status in ('none', 'pending', 'done')),
-  purged_at timestamptz,
-  purge_summary jsonb,
+  face_purged_at timestamptz,
+  show_in_portfolio boolean not null default false,
   created_by uuid references admin_users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -68,6 +67,12 @@ create table media (
   published boolean not null default true,
   unpublished_at timestamptz,
   consent_status text not null default 'pending' check (consent_status in ('pending', 'granted_all', 'denied')),
+  -- Autorização de uso de imagem para divulgação (portfólio). Independente da busca facial.
+  image_use boolean not null default false,
+  image_use_note text,
+  image_use_set_by uuid references admin_users(id) on delete set null,
+  image_use_set_at timestamptz,
+  highlight boolean not null default false,
   consent_note text,
   consent_set_by uuid references admin_users(id) on delete set null,
   consent_set_at timestamptz,
@@ -85,6 +90,7 @@ create table media (
 );
 create index media_event_list_idx on media (event_id, created_at desc, id desc);
 create index media_event_sha_idx on media (event_id, sha256);
+create index media_highlight_idx on media (event_id) where highlight;
 
 -- Referências faciais: cada rosto indexado no provedor aponta para a mídia de origem (e o instante, em vídeos).
 create table face_records (
@@ -181,6 +187,7 @@ create table consent_records (
   participant_contact text,
   capture_ref text,
   term_version text not null,
+  scope text not null default 'face' check (scope in ('face', 'image_use', 'face_and_image_use')),
   collected_by text not null,
   collected_at timestamptz not null default now(),
   notes text,

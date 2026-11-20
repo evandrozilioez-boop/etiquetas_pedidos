@@ -24,7 +24,7 @@ const schema = z.object({
   S3_FORCE_PATH_STYLE: bool,
   S3_CORS_ORIGINS: z.string().optional(),
 
-  FACE_PROVIDER: z.enum(["mock", "rekognition"]).default("mock"),
+  FACE_PROVIDER: z.enum(["none", "mock", "rekognition"]).default("mock"),
   AWS_REGION: z.string().default("us-east-1"),
   FACE_COLLECTION_PREFIX: z.string().default("giro360"),
   FACE_MATCH_THRESHOLD: z.coerce.number().min(50).max(100).default(90),
@@ -37,10 +37,14 @@ const schema = z.object({
   UPLOAD_MAX_VIDEO_MB: z.coerce.number().min(1).default(8192),
   MULTIPART_PART_MB: z.coerce.number().min(5).max(512).default(16),
   SIGNED_URL_TTL_SEC: z.coerce.number().int().min(30).max(3600).default(600),
-  DEFAULT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
-  SHARE_LINK_DEFAULT_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
+  ACCESS_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
+  ACCESS_EXTENSION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
+  FACE_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
 
   REMOVAL_REQUEST_CONTACT: z.string().default("privacidade@giro360.com.br"),
+  WHATSAPP_NUMBER: z.string().default(""),
+  ADMIN_EMAIL: z.string().optional(),
+  ADMIN_PASSWORD: z.string().optional(),
   COMPANY_NAME: z.string().default("Giro 360"),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
   TRUST_PROXY: bool,
@@ -79,10 +83,15 @@ export function isMockFaces(): boolean {
   return config().FACE_PROVIDER === "mock";
 }
 
+export function facesAvailable(): boolean {
+  return config().FACE_PROVIDER !== "none";
+}
+
 export const ACCEPTED_TYPES = {
   "image/jpeg": { kind: "photo", ext: "jpg" },
   "image/png": { kind: "photo", ext: "png" },
   "video/mp4": { kind: "video", ext: "mp4" },
+  "video/quicktime": { kind: "video", ext: "mov" },
 } as const;
 
 export type AcceptedType = keyof typeof ACCEPTED_TYPES;
@@ -94,6 +103,6 @@ export function limitsForClient() {
     videoMaxMb: c.UPLOAD_MAX_VIDEO_MB,
     partMb: c.MULTIPART_PART_MB,
     accepted: Object.keys(ACCEPTED_TYPES),
-    acceptedLabel: "JPEG, PNG e MP4",
+    acceptedLabel: "JPEG, PNG, MP4 e MOV",
   };
 }
