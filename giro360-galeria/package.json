@@ -1,0 +1,47 @@
+{
+  "name": "giro360-galeria",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Giro 360 | Galeria de Eventos — fotos do totem e vídeos da Plataforma 360 com busca por selfie",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "worker": "tsx src/worker/index.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "storage:setup": "tsx scripts/setup-storage.ts",
+    "admin:create": "tsx scripts/create-admin.ts",
+    "demo:seed": "tsx scripts/seed-demo.ts",
+    "cost:estimate": "tsx scripts/estimate-cost.ts",
+    "backup:event": "tsx scripts/backup-event.ts",
+    "restore:event": "tsx scripts/restore-event.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration"
+  },
+  "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.1173.0",
+    "@aws-sdk/client-s3": "^3.1173.0",
+    "@aws-sdk/s3-request-presigner": "^3.1173.0",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.18",
+    "next": "^15.5.29",
+    "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "sharp": "^0.35.5",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "5.9",
+    "vitest": "^5.1.1"
+  }
+}

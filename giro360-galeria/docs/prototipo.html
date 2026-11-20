@@ -1,0 +1,666 @@
+<title>Giro 360 Galeria</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* Layout: galeria escura onde as fotos são o foco; painel claro e denso para notebook/iPad. */
+:root {
+  --ink: #15131c;
+  --paper: #f6f5f8;
+  --surface: #ffffff;
+  --line: #e2dfe8;
+  --muted: #6c6879;
+  --fg: #1b1924;
+  --accent: #ff5a1f;
+  --accent-ink: #ffffff;
+  --accent-soft: #ffe7dc;
+  --ok: #1d8a4e; --ok-soft: #dcf3e5;
+  --warn: #a86400; --warn-soft: #fdf0d6;
+  --bad: #c0262d; --bad-soft: #fbe1e2;
+  --info: #3755c7; --info-soft: #e1e7fb;
+  --gallery-bg: #121017; --gallery-fg: #f4f2f7; --gallery-muted: #a7a2b5; --gallery-card: #1d1a25;
+  --display: "Sora", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #121017; --surface: #1c1924; --line: #302c3b; --muted: #a29db0; --fg: #f1eff5;
+  --accent-soft: #3a2017; --ok-soft: #133523; --warn-soft: #3a2a0f; --bad-soft: #3d1517; --info-soft: #1b2348;
+  --ok: #4fd08a; --warn: #f2b14a; --bad: #ff7a80; --info: #8ea6ff;
+  --gallery-bg: #0c0b10; --gallery-card: #18161f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #121017; --surface: #1c1924; --line: #302c3b; --muted: #a29db0; --fg: #f1eff5;
+  --accent-soft: #3a2017; --ok-soft: #133523; --warn-soft: #3a2a0f; --bad-soft: #3d1517; --info-soft: #1b2348;
+  --ok: #4fd08a; --warn: #f2b14a; --bad: #ff7a80; --info: #8ea6ff;
+  --gallery-bg: #0c0b10; --gallery-card: #18161f; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--paper); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5 }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15 }
+button, input, select { font: inherit }
+button { cursor: pointer }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+
+/* barra do protótipo */
+.proto { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--ink); color: #fff; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--ink) }
+.proto .wrap { display: flex; gap: 8px; align-items: center; padding-block: 8px; flex-wrap: wrap }
+.proto strong { font-family: var(--display); font-size: 14px; margin-right: auto }
+.proto small { color: #b9b4c6; font-size: 12px }
+.tab { background: transparent; color: #d9d5e2; border: 1px solid #3a3646; border-radius: 999px; padding: 6px 12px; font-size: 13px }
+.tab[aria-current="true"] { background: var(--accent); border-color: var(--accent); color: #fff }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 12px; padding: 10px 16px; font-weight: 600; min-height: 44px; text-decoration: none }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink) }
+.btn.big { font-size: 18px; min-height: 60px; padding: 14px 24px; border-radius: 16px; width: 100% }
+.btn.ghost { background: transparent }
+.btn.sm { min-height: 34px; padding: 6px 10px; font-size: 13px; border-radius: 9px }
+.btn:disabled { opacity: .5; cursor: not-allowed }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; white-space: nowrap }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor }
+.p-ok { background: var(--ok-soft); color: var(--ok) } .p-warn { background: var(--warn-soft); color: var(--warn) }
+.p-bad { background: var(--bad-soft); color: var(--bad) } .p-info { background: var(--info-soft); color: var(--info) }
+.p-mute { background: var(--line); color: var(--muted) }
+
+/* ---------- convidado ---------- */
+.guest { background: var(--gallery-bg); color: var(--gallery-fg); min-height: 100vh }
+.guest .brand { display: flex; align-items: center; justify-content: space-between; padding-block: 14px; font-family: var(--display); font-weight: 700; letter-spacing: .02em }
+.guest .brand span { color: var(--accent) }
+.cover { position: relative; aspect-ratio: 16/10; max-height: 440px; width: 100%; overflow: hidden }
+.cover canvas { width: 100%; height: 100%; object-fit: cover; display: block }
+.cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 35%, rgba(12,11,16,.92)) }
+.cover-text { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding-block: 18px }
+.cover-text h1 { font-size: clamp(26px, 6vw, 44px); color: #fff }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: #ddd8e8; font-size: 14px; margin-top: 6px }
+.gbody { max-width: 760px; margin: 0 auto; padding-block: 20px 60px; display: grid; gap: 18px }
+.gcard { background: var(--gallery-card); border-radius: 18px; padding: 20px; display: grid; gap: 14px }
+.gcard p { margin: 0; color: var(--gallery-muted) }
+.gcard h2 { font-size: 21px }
+.deadline { font-size: 13px; color: var(--gallery-muted); text-align: center }
+.code-in { font-size: 24px; letter-spacing: .3em; text-transform: uppercase; text-align: center; padding: 12px; border-radius: 12px; border: 2px solid #3b3647; background: #0f0d14; color: #fff; width: 100% }
+.howto { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none }
+.howto li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; color: #d9d4e4 }
+.howto b { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #2b2735; font-size: 13px }
+.check { display: flex; gap: 10px; align-items: flex-start; color: #e7e3ee }
+.check input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; margin-top: 1px }
+.choices { display: grid; gap: 10px; grid-template-columns: 1fr 1fr }
+@media (max-width: 460px) { .choices { grid-template-columns: 1fr } }
+.choice { background: #26222f; color: #fff; border: 1px solid #3b3647; border-radius: 16px; padding: 18px 14px; display: grid; gap: 6px; justify-items: center; text-align: center; min-height: 110px; font-weight: 600 }
+.choice svg { width: 30px; height: 30px; stroke: var(--accent) }
+.choice small { font-weight: 400; color: var(--gallery-muted); font-size: 12px }
+.notice { border-radius: 12px; padding: 12px 14px; font-size: 14px; display: grid; gap: 4px }
+.n-warn { background: #3a2a0f; color: #ffd793 } .n-bad { background: #3d1517; color: #ffb3b6 } .n-info { background: #1b2348; color: #c4d0ff } .n-ok { background: #133523; color: #9fe8be }
+.testsel { display: flex; flex-wrap: wrap; gap: 6px }
+.testsel button { border: 1px solid #3b3647; background: #1a1720; color: #ddd; border-radius: 999px; padding: 6px 10px; font-size: 12px; display: inline-flex; gap: 6px; align-items: center }
+.dot { width: 12px; height: 12px; border-radius: 50% }
+.selfie-prev { display: flex; gap: 12px; align-items: center }
+.selfie-prev canvas { width: 72px; height: 72px; border-radius: 12px; object-fit: cover; background: #222 }
+.filters { display: flex; gap: 6px; background: #1d1a25; padding: 4px; border-radius: 12px; width: fit-content }
+.filters button { border: 0; background: transparent; color: var(--gallery-muted); padding: 8px 14px; border-radius: 9px; font-weight: 600 }
+.filters button[aria-pressed="true"] { background: #fff; color: #15131c }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px }
+@media (max-width: 460px) { .grid { grid-template-columns: repeat(2, 1fr) } }
+.tile { position: relative; aspect-ratio: 1; border: 0; padding: 0; border-radius: 10px; overflow: hidden; background: #222 }
+.tile canvas { width: 100%; height: 100%; display: block; object-fit: cover }
+.tile .badge { position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,.72); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 6px; display: inline-flex; gap: 4px; align-items: center; font-variant-numeric: tabular-nums }
+.tile .sim { position: absolute; right: 6px; top: 6px; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 6px }
+.spinner { width: 34px; height: 34px; border: 4px solid #3b3647; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; margin: 0 auto }
+@keyframes spin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s } }
+.foot { text-align: center; font-size: 12px; color: var(--gallery-muted); padding-block: 10px 30px }
+.foot a { color: var(--gallery-fg) }
+
+/* lightbox */
+.lb { position: fixed; inset: 0; z-index: 40; background: rgba(8,7,11,.96); display: grid; grid-template-rows: auto 1fr auto; padding: calc(env(safe-area-inset-top, 0px) + 8px) max(12px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 14px) max(12px, env(safe-area-inset-left, 0px)); color: #fff }
+.lb-top { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.lb-top button { background: #24212c; color: #fff; border: 0; width: 44px; height: 44px; border-radius: 50%; font-size: 20px }
+.lb-stage { display: grid; place-items: center; min-height: 0; position: relative }
+.lb-stage canvas { max-width: 100%; max-height: 100%; border-radius: 8px }
+.lb-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(36,33,44,.8); color: #fff; border: 0; width: 44px; height: 44px; border-radius: 50%; font-size: 20px }
+.lb-bottom { display: grid; gap: 8px; max-width: 520px; width: 100%; margin: 0 auto }
+.lb-bottom small { color: var(--gallery-muted); text-align: center }
+
+/* ---------- painel ---------- */
+.admin { min-height: 100vh }
+.ahead { background: var(--surface); border-bottom: 1px solid var(--line) }
+.ahead .wrap { display: flex; align-items: center; gap: 16px; padding-block: 12px; flex-wrap: wrap }
+.logo { font-family: var(--display); font-weight: 700; font-size: 18px }
+.logo span { color: var(--accent) }
+.anav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap }
+.anav button { background: none; border: 0; color: var(--muted); padding: 8px 12px; border-radius: 8px; font-weight: 600 }
+.anav button[aria-current="true"] { background: var(--accent-soft); color: var(--accent) }
+.amain { max-width: 1180px; margin: 0 auto; padding-block: 22px 60px; display: grid; gap: 18px }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap }
+.row h1 { font-size: 26px; margin-right: auto }
+.seg { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); padding: 4px; border-radius: 11px; flex-wrap: wrap }
+.seg button { border: 0; background: none; padding: 7px 12px; border-radius: 8px; color: var(--muted); font-weight: 600 }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--paper) }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px }
+.ecard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; display: grid; text-align: left; padding: 0; color: var(--fg) }
+.ecard canvas { width: 100%; aspect-ratio: 16/8; display: block; object-fit: cover }
+.ecard .in { padding: 14px; display: grid; gap: 8px }
+.ecard h3 { font-size: 17px }
+.ecard .nums { display: flex; gap: 14px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 14px; min-width: 0 }
+.panel h2 { font-size: 18px }
+.two { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px }
+@media (max-width: 860px) { .two { grid-template-columns: 1fr } }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px }
+.stat { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px }
+.stat b { font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums }
+.stat span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em }
+.field { display: grid; gap: 6px }
+.field label { font-weight: 600; font-size: 13px }
+.field input, .field select { border: 1px solid var(--line); background: var(--paper); color: var(--fg); border-radius: 10px; padding: 10px 12px; min-height: 44px; width: 100% }
+.field small { color: var(--muted) }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px }
+.toggle { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: 12px }
+.toggle input { width: 22px; height: 22px; accent-color: var(--accent); flex: none }
+.toggle small { display: block; color: var(--muted) }
+.qrbox { display: grid; justify-items: center; gap: 10px; text-align: center }
+.qrbox .qr { background: #fff; padding: 12px; border-radius: 12px }
+.linkline { display: flex; gap: 6px; width: 100%; min-width: 0 }
+.linkline code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; text-align: left; user-select: all }
+.drop { border: 2px dashed var(--line); border-radius: var(--r); padding: 26px 16px; text-align: center; display: grid; gap: 8px; justify-items: center; background: var(--paper) }
+.drop.over { border-color: var(--accent); background: var(--accent-soft) }
+.drop small { color: var(--muted) }
+.uplist { display: grid; gap: 6px }
+.up { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px }
+.up .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
+.up .sub { grid-column: 1 / -1; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums }
+.bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden }
+.bar i { display: block; height: 100%; background: var(--accent); transition: width .2s }
+.tablewrap { overflow-x: auto }
+table { width: 100%; border-collapse: collapse; font-size: 14px }
+th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; padding: 8px }
+td { border-top: 1px solid var(--line); padding: 8px; vertical-align: middle }
+td canvas { width: 56px; height: 56px; border-radius: 8px; display: block; object-fit: cover }
+.acts { display: flex; gap: 6px; flex-wrap: wrap }
+
+.modal { position: fixed; inset: 0; z-index: 50; background: rgba(10,9,14,.6); display: grid; place-items: center; padding: 16px }
+.modal .box { background: var(--surface); color: var(--fg); border-radius: 18px; padding: 20px; width: min(420px, 100%); display: grid; gap: 12px; max-height: 90vh; overflow: auto }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); z-index: 60; background: var(--fg); color: var(--paper); padding: 12px 18px; border-radius: 12px; font-weight: 600; max-width: calc(100% - 32px); box-shadow: 0 10px 30px rgba(0,0,0,.3) }
+.demo-flag { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600 }
+.muted { color: var(--muted) }
+</style>
+
+<div class="proto">
+  <div class="wrap">
+    <strong>Protótipo Giro 360 <small>· dados fictícios, nada é enviado</small></strong>
+    <button class="tab" data-view="guest" aria-current="true">Convidado (celular)</button>
+    <button class="tab" data-view="admin">Painel da Giro</button>
+  </div>
+</div>
+
+<main id="app"></main>
+<div id="overlay"></div>
+
+<script>
+/* ===================== dados fictícios ===================== */
+const PERSONAS = [
+  { id: 0, name: "Ana", color: "#e5262b" }, { id: 1, name: "Bruno", color: "#f2c800" },
+  { id: 2, name: "Carla", color: "#19b33d" }, { id: 3, name: "Diego", color: "#00b8d4" },
+  { id: 4, name: "Elisa", color: "#2a4de8" }, { id: 5, name: "Fábio", color: "#d61ec8" },
+];
+const HUES = [0, 52, 135, 188, 229, 305];
+let seq = 1;
+function mk(kind, personas, extra = {}) {
+  return Object.assign({ id: "m" + (seq++), kind, personas, published: true, consent: "granted_all",
+    face: "indexed", status: "ready", dur: kind === "video" ? 12 + (seq * 7) % 20 : 0,
+    name: (kind === "video" ? "giro360_" : "totem_") + String(1000 + seq * 13) + (kind === "video" ? ".mp4" : ".jpg"),
+    size: kind === "video" ? 40e6 + seq * 3e6 : 3.2e6 + seq * 1e5, seed: seq * 31 }, extra);
+}
+const events = [
+  { id: "e1", name: "Festival Verão Giro 2026", date: "2026-11-14", city: "Florianópolis/SC", code: "PRAIA26",
+    priv: true, browse: false, faces: true, status: "active", retention: 90, seed: 7, token: "k7Qp2ZxW9mRt",
+    media: [mk("photo", [0]), mk("photo", [1, 2]), mk("video", [0, 3, 4]), mk("photo", [3]), mk("photo", [0, 5, 2]),
+      mk("video", [1, 2]), mk("photo", [4]), mk("photo", [5]), mk("video", [3, 5]), mk("photo", [2, 4]),
+      mk("photo", [1], { consent: "pending", face: "off" }), mk("video", [0], { status: "processing", face: "queued" })] },
+  { id: "e2", name: "Convenção Vendas Sul", date: "2026-10-30", city: "Curitiba/PR", code: "VENDAS",
+    priv: true, browse: true, faces: false, status: "closed", retention: 90, seed: 19, token: "Lb3vX8nQa1Pe",
+    media: [mk("photo", [1]), mk("video", [2]), mk("photo", [3])] },
+  { id: "e3", name: "Formatura Medicina 2026", date: "2026-07-20", city: "Porto Alegre/RS", code: "",
+    priv: false, browse: true, faces: false, status: "closed", retention: 90, seed: 41, token: "Zt6Yw2cHn4Ga", media: [] },
+];
+const BASE = "https://galeria.giro360.com.br";
+const fmtDate = (s) => new Date(s + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+const addDays = (s, d) => { const x = new Date(s + "T12:00:00"); x.setDate(x.getDate() + d); return x; };
+const TODAY = new Date("2026-11-20T12:00:00");
+function phase(e) { if (addDays(e.date, e.retention) < TODAY) return "expired"; return e.status; }
+const mmss = (s) => Math.floor(s / 60) + ":" + String(Math.round(s % 60)).padStart(2, "0");
+const mb = (b) => b >= 1e9 ? (b / 1e9).toFixed(2) + " GB" : (b / 1e6).toFixed(1) + " MB";
+
+/* ===================== ilustrações (canvas) ===================== */
+function rnd(seed) { let s = seed % 2147483647; if (s <= 0) s += 2147483646; return () => (s = s * 16807 % 2147483647) / 2147483647; }
+function scene(canvas, seed, personas, opts = {}) {
+  const w = canvas.width, h = canvas.height, c = canvas.getContext("2d"), r = rnd(seed + 3);
+  const tones = [["#2d2a3a", "#6b6680"], ["#3a3330", "#8a7f74"], ["#26323a", "#71828c"], ["#332a38", "#857590"]];
+  const t = tones[seed % tones.length];
+  const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, t[1]); g.addColorStop(1, t[0]);
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+  for (let i = 0; i < 14; i++) { c.fillStyle = `rgba(255,255,255,${0.04 + r() * 0.06})`; c.beginPath(); c.arc(r() * w, r() * h * 0.5, 4 + r() * 30, 0, 7); c.fill(); }
+  if (opts.ring) { c.strokeStyle = "rgba(255,255,255,.25)"; c.lineWidth = h * 0.02; c.beginPath(); c.ellipse(w / 2, h * 0.92, w * 0.42, h * 0.08, 0, 0, 7); c.stroke(); }
+  const n = personas.length; const shift = opts.shift || 0;
+  personas.forEach((p, i) => {
+    const x = w * ((i + 0.5) / n) + Math.sin(shift + i) * w * 0.05, base = h * 0.98, s = Math.min(h * 0.24, w / (n * 3.2));
+    c.fillStyle = "rgba(20,18,26,.82)"; c.beginPath(); c.ellipse(x, base, s * 1.15, s * 1.7, 0, Math.PI, 0); c.fill();
+    c.fillStyle = PERSONAS[p].color; c.beginPath(); c.arc(x, base - s * 2.15, s * 0.78, 0, 7); c.fill();
+    c.fillStyle = "rgba(0,0,0,.25)"; c.beginPath(); c.arc(x - s * 0.25, base - s * 2.25, s * 0.09, 0, 7); c.arc(x + s * 0.25, base - s * 2.25, s * 0.09, 0, 7); c.fill();
+  });
+}
+function canvasFor(w, h, seed, personas, opts) { const cv = document.createElement("canvas"); cv.width = w; cv.height = h; scene(cv, seed, personas, opts); return cv; }
+
+/* detecção simulada, mesma regra do modo de demonstração da aplicação: discos de cor saturada = "rostos" */
+function detect(canvas) {
+  const s = document.createElement("canvas"), k = Math.min(1, 96 / Math.max(canvas.width, canvas.height));
+  s.width = Math.max(1, Math.round(canvas.width * k)); s.height = Math.max(1, Math.round(canvas.height * k));
+  const c = s.getContext("2d"); c.drawImage(canvas, 0, 0, s.width, s.height);
+  const d = c.getImageData(0, 0, s.width, s.height).data, total = s.width * s.height, counts = [0, 0, 0, 0, 0, 0];
+  let luma = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const R = d[i], G = d[i + 1], B = d[i + 2]; luma += 0.299 * R + 0.587 * G + 0.114 * B;
+    const mx = Math.max(R, G, B), mn = Math.min(R, G, B), df = mx - mn; if (!mx || df / mx < 0.55 || mx / 255 < 0.4) continue;
+    let hh = mx === R ? ((G - B) / df) % 6 : mx === G ? (B - R) / df + 2 : (R - G) / df + 4; hh *= 60; if (hh < 0) hh += 360;
+    let best = -1, bd = 999; HUES.forEach((h0, j) => { let dd = Math.abs(hh - h0) % 360; if (dd > 180) dd = 360 - dd; if (dd < bd) { bd = dd; best = j; } });
+    if (bd <= 18) counts[best]++;
+  }
+  return { brightness: luma / total, faces: counts.map((n, j) => ({ persona: j, share: n / total })).filter((f) => f.share >= 0.012) };
+}
+
+/* ===================== estado ===================== */
+const state = { view: "guest", g: { step: "landing", verified: false, consent: false, results: null, filter: "all", scenario: "normal", selfie: null, msg: null },
+  a: { page: "dash", eventId: "e1", tab: "overview", filter: "all", uploads: [], unstable: false } };
+const app = document.getElementById("app"), overlay = document.getElementById("overlay");
+const ev = () => events.find((e) => e.id === state.a.eventId);
+const guestEvent = () => events[0];
+
+function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); }
+function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content; }
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
+
+document.querySelectorAll(".tab").forEach((b) => b.onclick = () => { state.view = b.dataset.view; render(); });
+function render() {
+  document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-current", String(b.dataset.view === state.view)));
+  app.innerHTML = ""; overlay.innerHTML = "";
+  if (state.view === "guest") renderGuest(); else if (state.view === "capture") renderCapture(); else renderAdmin();
+  window.scrollTo({ top: 0 });
+}
+
+/* ===================== CONVIDADO ===================== */
+function guestShell(inner) {
+  const e = guestEvent();
+  const root = h(`<div class="guest"><div class="wrap brand"><div>GIRO <span>360</span></div><small style="font-family:var(--body);font-weight:500;color:var(--gallery-muted)">Galeria do evento</small></div>
+    <div class="cover"><div class="cover-text wrap"><h1>${esc(e.name)}</h1><div class="meta"><span>${fmtDate(e.date)}</span><span>${esc(e.city)}</span></div></div></div>
+    <div class="wrap"><div class="gbody"></div></div>
+    <div class="foot wrap">Fotos e vídeos disponíveis até <b>${addDays(e.date, e.retention).toLocaleDateString("pt-BR")}</b>.<br>Quer remover uma imagem sua? Escreva para <span style="user-select:all">privacidade@giro360.com.br</span></div></div>`);
+  root.querySelector(".cover").prepend(canvasFor(1200, 750, e.seed, [0, 1, 2, 3, 4], { ring: true }));
+  inner(root.querySelector(".gbody"));
+  app.appendChild(root);
+}
+const ICON = { cam: `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`,
+  img: `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>` };
+
+function renderGuest() {
+  const g = state.g, e = guestEvent();
+  guestShell((body) => {
+    if (g.step === "landing") {
+      body.append(h(`<div class="gcard"><h2>Encontre as suas fotos e vídeos</h2><p>Envie uma selfie e mostramos os registros do totem e da Plataforma 360 em que você provavelmente aparece. Você baixa os arquivos originais, em qualidade máxima.</p>
+        <button class="btn primary big" id="go">Encontrar minhas fotos e vídeos</button>
+        <p class="deadline">Disponível para download até ${addDays(e.date, e.retention).toLocaleDateString("pt-BR")}</p></div>
+        <div class="gcard"><h2 style="font-size:17px">Recebeu um QR Code no estande?</h2><p>O QR individual abre direto a sua foto ou vídeo, sem selfie.</p><button class="btn ghost" id="cap" style="color:#fff;border-color:#3b3647">Ver exemplo de QR individual</button></div>`));
+      body.querySelector("#go").onclick = () => { g.step = e.priv && !g.verified ? "code" : "explain"; render(); };
+      body.querySelector("#cap").onclick = () => { state.capture = e.media[2]; state.view = "capture"; render(); };
+    }
+    if (g.step === "code") {
+      body.append(h(`<form class="gcard" id="f"><h2>Digite o código do evento</h2><p>Este álbum é privado. O código está no estande e no material entregue pela produção.</p>
+        <input class="code-in" id="code" autocomplete="off" maxlength="12" aria-label="Código do evento" placeholder="······">
+        ${g.msg ? `<div class="notice n-bad">${g.msg}</div>` : ""}
+        <button class="btn primary big">Continuar</button><p class="deadline">Para testar, use o código <b style="color:#fff">PRAIA26</b>. Após 5 tentativas erradas, a busca fica bloqueada por 15 minutos.</p></form>`));
+      body.querySelector("#f").onsubmit = (ev2) => { ev2.preventDefault(); const v = body.querySelector("#code").value.trim().toUpperCase();
+        g.attempts = (g.attempts || 0) + 1;
+        if (v === e.code) { g.verified = true; g.msg = null; g.step = "explain"; }
+        else g.msg = g.attempts >= 5 ? "Muitas tentativas. Aguarde 15 minutos e tente de novo." : `Código incorreto. Restam ${5 - g.attempts} tentativas.`;
+        render(); };
+    }
+    if (g.step === "explain") {
+      body.append(h(`<div class="gcard"><h2>Como sua foto será usada</h2>
+        <ul class="howto"><li><b>1</b><span>Comparamos o seu rosto <strong>somente</strong> com as fotos e vídeos deste evento.</span></li>
+        <li><b>2</b><span>A selfie é usada só durante a busca e apagada em seguida. Ela não fica salva na galeria.</span></li>
+        <li><b>3</b><span>Os resultados são sugestões. Confira se é mesmo você antes de baixar.</span></li></ul>
+        <label class="check"><input type="checkbox" id="ok" ${g.consent ? "checked" : ""}><span>Entendi e autorizo o uso desta selfie apenas para esta busca.</span></label></div>
+        <div class="gcard"><h2 style="font-size:17px">Envie uma foto com apenas o seu rosto</h2><p>De frente, bem iluminada e sem óculos escuros.</p>
+        <div class="choices"><button class="choice" id="cam">${ICON.cam}Tirar uma selfie<small>Usa a câmera frontal</small></button>
+        <label class="choice" for="file">${ICON.img}Escolher uma foto<small>Da galeria do celular</small></label></div>
+        <input type="file" id="file" accept="image/*" hidden>
+        ${g.msg ? `<div class="notice ${g.msg.cls}"><b>${g.msg.t}</b><span>${g.msg.d}</span></div>` : ""}
+        <div><p style="font-size:13px;margin-bottom:6px">Selfies de teste do modo simulado:</p><div class="testsel">
+          ${PERSONAS.map((p) => `<button data-p="${p.id}"><i class="dot" style="background:${p.color}"></i>${p.name}</button>`).join("")}
+          <button data-p="dark">Foto escura</button><button data-p="two">Dois rostos</button><button data-p="none">Sem rosto</button></div></div>
+        </div>
+        <div class="gcard"><p style="font-size:13px">Simular situação da busca:</p><div class="filters" id="scn" style="flex-wrap:wrap">
+          ${[["normal", "Normal"], ["processing", "Arquivos em processamento"], ["error", "Falha temporária"]].map(([k, l]) => `<button aria-pressed="${g.scenario === k}" data-k="${k}">${l}</button>`).join("")}</div></div>`));
+      const ok = body.querySelector("#ok"); ok.onchange = () => g.consent = ok.checked;
+      const need = () => { if (!g.consent) { g.msg = { cls: "n-warn", t: "Falta sua autorização", d: "Marque a caixa acima para continuar." }; render(); return false; } return true; };
+      body.querySelector("#cam").onclick = () => { if (!need()) return;
+        g.msg = { cls: "n-info", t: "A câmera não está disponível nesta visualização", d: "Use “Escolher uma foto”: no celular, essa opção também permite tirar a foto na hora. Na aplicação, se a câmera estiver bloqueada, o envio de foto continua disponível." }; render(); };
+      body.querySelector("label[for=file]").onclick = (x) => { if (!g.consent) { x.preventDefault(); need(); } };
+      body.querySelector("#file").onchange = (x) => { const f = x.target.files[0]; if (!f) return; const img = new Image();
+        img.onload = () => { const cv = document.createElement("canvas"), k = Math.min(1, 1280 / Math.max(img.width, img.height)); cv.width = img.width * k; cv.height = img.height * k; cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(img.src); runSearch(cv); };
+        img.onerror = () => { g.msg = { cls: "n-bad", t: "Não conseguimos abrir essa imagem", d: "Tente outra foto em JPEG ou PNG." }; render(); };
+        img.src = URL.createObjectURL(f); };
+      body.querySelectorAll(".testsel button").forEach((b) => b.onclick = () => { if (!need()) return; const p = b.dataset.p; const cv = document.createElement("canvas"); cv.width = 480; cv.height = 600;
+        if (p === "dark") { scene(cv, 2, [0]); const c = cv.getContext("2d"); c.fillStyle = "rgba(0,0,0,.88)"; c.fillRect(0, 0, 480, 600); }
+        else if (p === "two") scene(cv, 4, [1, 4]); else if (p === "none") scene(cv, 6, []); else scene(cv, 8, [+p]);
+        runSearch(cv); });
+      body.querySelectorAll("#scn button").forEach((b) => b.onclick = () => { g.scenario = b.dataset.k; render(); });
+    }
+    if (g.step === "searching") {
+      body.append(h(`<div class="gcard" style="text-align:center;padding:40px 20px"><div class="spinner"></div><h2 style="font-size:19px">Procurando você nas fotos e vídeos…</h2><p>Isso leva alguns segundos.</p></div>`));
+    }
+    if (g.step === "results") renderResults(body);
+  });
+}
+
+function runSearch(cv) {
+  const g = state.g, e = guestEvent(), r = detect(cv);
+  if (r.brightness < 45) { g.msg = { cls: "n-warn", t: "A foto está muito escura", d: "Procure um lugar mais iluminado ou vire o rosto para a luz e tente de novo." }; return render(); }
+  if (!r.faces.length) { g.msg = { cls: "n-warn", t: "Não encontramos um rosto nesta foto", d: "Envie uma foto de frente, com o rosto inteiro aparecendo. No modo simulado, use uma das selfies de teste." }; return render(); }
+  if (r.faces.length > 1) { g.msg = { cls: "n-warn", t: "Encontramos mais de um rosto", d: "Envie uma foto em que apareça apenas você." }; return render(); }
+  g.msg = null; g.selfie = cv; g.step = "searching"; render();
+  setTimeout(() => {
+    const p = r.faces[0].persona;
+    if (g.scenario === "error") g.results = { status: "error" };
+    else {
+      const items = g.scenario === "processing" ? [] : e.media.filter((m) => m.status === "ready" && m.published && m.face === "indexed" && m.personas.includes(p))
+        .map((m, i) => ({ m, sim: 99.4 - i * 0.7 }));
+      const pending = g.scenario === "processing" ? 9 : e.media.filter((m) => m.status !== "ready" || m.face === "queued").length;
+      g.results = { status: items.length ? "matches" : g.scenario === "processing" ? "processing" : "no_match", items, pending, persona: p };
+    }
+    g.step = "results"; g.filter = "all"; render();
+  }, 1300);
+}
+
+function renderResults(body) {
+  const g = state.g, R = g.results;
+  const head = h(`<div class="gcard"><div class="selfie-prev"></div></div>`);
+  const sp = head.querySelector(".selfie-prev");
+  const thumb = document.createElement("canvas"); thumb.width = 144; thumb.height = 144; thumb.getContext("2d").drawImage(g.selfie, 0, 0, 144, 144);
+  sp.append(thumb, h(`<div style="display:grid;gap:4px"><b>Sua busca</b><span style="color:var(--gallery-muted);font-size:13px">A selfie já foi descartada.</span><button class="btn sm ghost" id="again" style="color:#fff;border-color:#3b3647;width:fit-content">Buscar com outra foto</button></div>`));
+  body.append(head);
+  body.querySelector("#again").onclick = () => { g.step = "explain"; render(); };
+  if (R.status === "error") {
+    body.append(h(`<div class="notice n-bad"><b>Falha temporária na busca</b><span>Não foi um problema com a sua foto. Tente de novo em alguns instantes. Se recebeu um QR individual no estande, ele continua funcionando.</span><button class="btn primary" id="retry" style="margin-top:6px">Tentar de novo</button></div>`));
+    body.querySelector("#retry").onclick = () => { g.scenario = "normal"; runSearch(g.selfie); }; return;
+  }
+  if (R.status === "processing") {
+    body.append(h(`<div class="notice n-info"><b>Ainda estamos preparando os arquivos</b><span>Nenhum resultado por enquanto, mas ${R.pending || 3} arquivo(s) deste evento ainda estão em processamento. Volte em alguns minutos e busque de novo.</span></div>`)); return;
+  }
+  if (R.status === "no_match") {
+    body.append(h(`<div class="notice n-warn"><b>Nenhuma correspondência encontrada</b><span>Não achamos você nos arquivos já disponíveis. Tente uma selfie de frente, com boa luz. Se a sua foto foi entregue por QR individual, use aquele link.</span></div>`)); return;
+  }
+  const photos = R.items.filter((x) => x.m.kind === "photo").length, videos = R.items.length - photos;
+  const box = h(`<div style="display:grid;gap:12px"><div><h2 style="font-size:22px">Encontramos ${R.items.length} registro${R.items.length > 1 ? "s" : ""}</h2>
+    <p style="margin:2px 0 0;color:var(--gallery-muted)">${photos} foto${photos !== 1 ? "s" : ""} e ${videos} vídeo${videos !== 1 ? "s" : ""}. São sugestões: confira antes de baixar.</p></div>
+    ${R.pending ? `<div class="notice n-info"><span>Mais ${R.pending} arquivo(s) ainda estão em processamento. Busque de novo daqui a pouco.</span></div>` : ""}
+    <div class="filters" role="group" aria-label="Filtrar">${[["all", "Todos"], ["photo", "Fotos"], ["video", "Vídeos"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${g.filter === k}">${l}</button>`).join("")}</div>
+    <div class="grid"></div></div>`);
+  const grid = box.querySelector(".grid");
+  const list = R.items.filter((x) => g.filter === "all" || x.m.kind === g.filter);
+  list.forEach((x, i) => {
+    const b = document.createElement("button"); b.className = "tile"; b.setAttribute("aria-label", (x.m.kind === "video" ? "Vídeo " : "Foto ") + (i + 1));
+    b.append(canvasFor(320, 320, x.m.seed, x.m.personas, { ring: x.m.kind === "video" }));
+    b.append(h(x.m.kind === "video" ? `<span class="badge">▶ ${mmss(x.m.dur)}</span>` : ""));
+    b.onclick = () => lightbox(list.map((y) => y.m), i, "guest");
+    grid.append(b);
+  });
+  box.querySelectorAll("[data-f]").forEach((b) => b.onclick = () => { g.filter = b.dataset.f; render(); });
+  body.append(box);
+}
+
+function lightbox(list, idx, mode) {
+  let i = idx, raf = 0;
+  const draw = () => {
+    cancelAnimationFrame(raf); const m = list[i];
+    overlay.innerHTML = "";
+    const el = h(`<div class="lb" role="dialog" aria-label="Visualização ampliada"><div class="lb-top"><span>${i + 1} de ${list.length}${m.kind === "video" ? " · vídeo " + mmss(m.dur) : ""}</span><button aria-label="Fechar" id="x">✕</button></div>
+      <div class="lb-stage"></div><div class="lb-bottom"><button class="btn primary big" id="dl">Baixar original</button><small>${m.kind === "video" ? "Vídeo completo em MP4" : "Foto em resolução máxima"} · ${mb(m.size)} · link válido por 10 minutos</small></div></div>`);
+    const stage = el.querySelector(".lb-stage"), cv = canvasFor(1080, m.kind === "video" ? 1080 : 810, m.seed, m.personas, { ring: m.kind === "video" });
+    stage.append(cv);
+    if (m.kind === "video" && !matchMedia("(prefers-reduced-motion: reduce)").matches) { let t = 0; const loop = () => { t += 0.03; scene(cv, m.seed, m.personas, { ring: true, shift: t }); raf = requestAnimationFrame(loop); }; loop(); }
+    if (list.length > 1) { const pv = h(`<button class="lb-nav" style="left:0" aria-label="Anterior">‹</button><button class="lb-nav" style="right:0" aria-label="Próximo">›</button>`); stage.append(pv);
+      const [a, b] = stage.querySelectorAll(".lb-nav"); a.onclick = () => { i = (i - 1 + list.length) % list.length; draw(); }; b.onclick = () => { i = (i + 1) % list.length; draw(); }; }
+    el.querySelector("#x").onclick = () => { cancelAnimationFrame(raf); overlay.innerHTML = ""; };
+    el.querySelector("#dl").onclick = () => toast(`Na aplicação real, aqui começa o download de ${m.name}`);
+    overlay.append(el);
+  };
+  draw();
+}
+
+/* ===================== QR INDIVIDUAL ===================== */
+function renderCapture() {
+  const m = state.capture, e = events.find((x) => x.media.includes(m)) || guestEvent();
+  const root = h(`<div class="guest"><div class="wrap brand"><div>GIRO <span>360</span></div><button class="btn sm ghost" id="back" style="color:#fff;border-color:#3b3647">Voltar</button></div>
+    <div class="wrap"><div class="gbody" style="padding-top:4px"><div><h1 style="font-size:24px">Seu ${m.kind === "video" ? "vídeo" : "registro"} no ${esc(e.name)}</h1><p style="margin:4px 0 0;color:var(--gallery-muted)">${fmtDate(e.date)} · ${esc(e.city)}</p></div>
+    <div class="stage" style="border-radius:16px;overflow:hidden;position:relative"></div>
+    <button class="btn primary big" id="dl">Baixar original</button>
+    <p class="deadline">Este link é pessoal e funciona sem selfie. Disponível até ${addDays(e.date, e.retention).toLocaleDateString("pt-BR")}.</p></div></div></div>`);
+  const cv = canvasFor(1080, 1080, m.seed, m.personas, { ring: m.kind === "video" }); cv.style.width = "100%"; cv.style.display = "block";
+  root.querySelector(".stage").append(cv);
+  if (m.kind === "video") root.querySelector(".stage").append(h(`<span class="badge" style="position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.7);padding:3px 10px;border-radius:6px">▶ ${mmss(m.dur)}</span>`));
+  root.querySelector("#dl").onclick = () => toast(`Na aplicação real, aqui começa o download de ${m.name}`);
+  root.querySelector("#back").onclick = () => { state.view = state.captureFrom || "guest"; render(); };
+  app.append(root);
+}
+
+/* ===================== PAINEL ===================== */
+function renderAdmin() {
+  const a = state.a;
+  const root = h(`<div class="admin"><header class="ahead"><div class="wrap"><div class="logo">GIRO <span>360</span> <small class="muted" style="font-family:var(--body);font-weight:500;font-size:13px">Operação</small></div>
+    <nav class="anav"><button data-p="dash" aria-current="${a.page === "dash"}">Eventos</button><button data-p="new" aria-current="${a.page === "new"}">Novo evento</button><button data-p="settings" aria-current="${a.page === "settings"}">Configurações</button></nav></div></header>
+    <div class="wrap"><div class="amain"></div></div></div>`);
+  root.querySelectorAll(".anav button").forEach((b) => b.onclick = () => { a.page = b.dataset.p; render(); });
+  const main = root.querySelector(".amain");
+  if (a.page === "dash") dash(main); else if (a.page === "new") eventForm(main, null); else if (a.page === "event") eventPage(main); else settings(main);
+  app.append(root);
+}
+const PH = { active: ["Ativo", "p-ok"], closed: ["Encerrado", "p-info"], expired: ["Expirado", "p-mute"] };
+function dash(main) {
+  const a = state.a; a.dfilter = a.dfilter || "all";
+  main.append(h(`<div class="row"><h1>Eventos</h1><div class="seg">${[["all", "Todos"], ["active", "Ativos"], ["closed", "Encerrados"], ["expired", "Expirados"]].map(([k, l]) => `<button data-k="${k}" aria-pressed="${a.dfilter === k}">${l}</button>`).join("")}</div><button class="btn primary" id="new">+ Novo evento</button></div>
+    <div class="demo-flag">Modo simulado: reconhecimento facial de demonstração. Este modo é bloqueado em produção.</div><div class="cards"></div>`));
+  main.querySelector("#new").onclick = () => { a.page = "new"; render(); };
+  main.querySelectorAll(".seg button").forEach((b) => b.onclick = () => { a.dfilter = b.dataset.k; render(); });
+  const cards = main.querySelector(".cards");
+  events.filter((e) => a.dfilter === "all" || phase(e) === a.dfilter).forEach((e) => {
+    const ph = PH[phase(e)], ph2 = e.media.filter((m) => m.status !== "ready").length;
+    const c = h(`<button class="ecard"><div class="in"><div class="row" style="gap:8px"><h3 style="margin-right:auto">${esc(e.name)}</h3><span class="pill ${ph[1]}">${ph[0]}</span></div>
+      <span class="muted" style="font-size:13px">${fmtDate(e.date)} · ${esc(e.city)}</span>
+      <div class="nums"><span>${e.media.filter((m) => m.kind === "photo").length} fotos</span><span>${e.media.filter((m) => m.kind === "video").length} vídeos</span>${ph2 ? `<span style="color:var(--warn)">${ph2} processando</span>` : ""}</div></div></button>`);
+    const btn = c.querySelector("button"); btn.prepend(canvasFor(640, 320, e.seed, phase(e) === "expired" ? [] : [0, 2, 4], { ring: true }));
+    btn.onclick = () => { a.eventId = e.id; a.page = "event"; a.tab = "overview"; render(); };
+    cards.append(c);
+  });
+}
+function eventForm(main, e) {
+  const d = e || { name: "", date: "2026-11-28", city: "", code: "", priv: true, browse: false, retention: 90 };
+  main.append(h(`<div class="row"><h1>${e ? "Editar evento" : "Novo evento"}</h1></div>
+   <form class="panel" id="f"><div class="fgrid">
+    <div class="field"><label for="n">Nome do evento</label><input id="n" required value="${esc(d.name)}" placeholder="Ex.: Lançamento Verão 2027"></div>
+    <div class="field"><label for="d">Data</label><input id="d" type="date" required value="${d.date}"></div>
+    <div class="field"><label for="c">Cidade</label><input id="c" required value="${esc(d.city)}" placeholder="Ex.: São Paulo/SP"></div>
+    <div class="field"><label for="r">Prazo para download (dias após o evento)</label><input id="r" type="number" min="1" value="${d.retention}"><small>Padrão de 90 dias. Depois, originais, prévias e dados biométricos são apagados.</small></div>
+    <div class="field"><label for="k">Código de acesso</label><input id="k" value="${esc(d.code)}" placeholder="Gerado automaticamente" style="text-transform:uppercase"></div>
+    <div class="field"><label for="cv">Capa do evento</label><input id="cv" type="file" accept="image/jpeg,image/png"></div></div>
+    <label class="toggle"><input type="checkbox" id="pv" ${d.priv ? "checked" : ""}><span><b>Álbum privado</b><small>Exige o código de acesso antes da busca. Recomendado.</small></span></label>
+    <label class="toggle"><input type="checkbox" id="br" ${d.browse ? "checked" : ""}><span><b>Permitir navegar pelo álbum completo</b><small>Desligado: o convidado vê só os resultados da própria busca ou do QR individual.</small></span></label>
+    <div class="row"><button class="btn primary">${e ? "Salvar alterações" : "Criar evento"}</button><button type="button" class="btn ghost" id="cancel">Cancelar</button></div></form>`));
+  main.querySelector("#cancel").onclick = () => { state.a.page = e ? "event" : "dash"; render(); };
+  main.querySelector("#f").onsubmit = (x) => { x.preventDefault();
+    const v = (id) => main.querySelector(id).value.trim();
+    const t = e || { id: "e" + Date.now(), media: [], status: "active", faces: false, seed: Math.floor(Math.random() * 90), token: Math.random().toString(36).slice(2, 14) };
+    Object.assign(t, { name: v("#n"), date: v("#d"), city: v("#c"), retention: +v("#r") || 90, code: (v("#k") || Math.random().toString(36).slice(2, 8)).toUpperCase(), priv: main.querySelector("#pv").checked, browse: main.querySelector("#br").checked });
+    if (!e) events.unshift(t); state.a.eventId = t.id; state.a.page = "event"; state.a.tab = "overview"; toast(e ? "Alterações salvas" : "Evento criado"); render(); };
+}
+function eventPage(main) {
+  const a = state.a, e = ev(), ph = PH[phase(e)];
+  main.append(h(`<div class="row"><button class="btn sm ghost" id="back">‹ Eventos</button></div>
+    <div class="row"><h1>${esc(e.name)}</h1><span class="pill ${ph[1]}">${ph[0]}</span></div>
+    <p class="muted" style="margin:-10px 0 0">${fmtDate(e.date)} · ${esc(e.city)} · disponível até ${addDays(e.date, e.retention).toLocaleDateString("pt-BR")}</p>
+    <div class="seg">${[["overview", "Visão geral"], ["upload", "Enviar arquivos"], ["media", "Mídias"], ["consent", "Autorizações"]].map(([k, l]) => `<button data-t="${k}" aria-pressed="${a.tab === k}">${l}</button>`).join("")}</div><div id="tab"></div>`));
+  main.querySelector("#back").onclick = () => { a.page = "dash"; render(); };
+  main.querySelectorAll("[data-t]").forEach((b) => b.onclick = () => { a.tab = b.dataset.t; render(); });
+  const tab = main.querySelector("#tab"); tab.style.display = "grid"; tab.style.gap = "18px";
+  ({ overview, upload, media: mediaTab, consent: consentTab })[a.tab](tab, e);
+}
+function overview(tab, e) {
+  const ready = e.media.filter((m) => m.status === "ready"), url = `${BASE}/e/${e.token}`;
+  const bytes = e.media.reduce((s, m) => s + m.size * 1.06, 0), frames = e.media.filter((m) => m.kind === "video" && m.face === "indexed").length * 16;
+  tab.append(h(`<div class="two"><div class="panel"><h2>Resumo</h2><div class="stats">
+      <div class="stat"><b>${ready.filter((m) => m.kind === "photo").length}</b><span>Fotos</span></div>
+      <div class="stat"><b>${ready.filter((m) => m.kind === "video").length}</b><span>Vídeos</span></div>
+      <div class="stat"><b>${e.media.length - ready.length}</b><span>Processando</span></div>
+      <div class="stat"><b>${mb(bytes)}</b><span>Espaço ocupado</span></div>
+      <div class="stat"><b>${e.media.filter((m) => m.face === "indexed").length}</b><span>Na busca facial</span></div>
+      <div class="stat"><b>${frames + e.media.filter((m) => m.kind === "photo" && m.face === "indexed").length}</b><span>Imagens enviadas à IA</span></div></div>
+      <h2>Privacidade e acesso</h2>
+      <label class="toggle"><input type="checkbox" id="fs" ${e.faces ? "checked" : ""}><span><b>Busca facial</b><small>Começa desligada. Só indexa capturas com autorização de todos os participantes registrada.</small></span></label>
+      <label class="toggle"><input type="checkbox" id="br" ${e.browse ? "checked" : ""}><span><b>Navegação pelo álbum completo</b><small>${e.priv ? "Álbum privado, código " + esc(e.code) : "Álbum público"}</small></span></label>
+      <div class="acts"><button class="btn" id="edit">Editar evento</button><button class="btn" id="close">${e.status === "closed" ? "Reabrir evento" : "Encerrar evento"}</button><button class="btn" id="bio">Excluir dados biométricos</button></div></div>
+    <div class="panel qrbox"><h2>QR Code do evento</h2><div class="qr" id="qr"></div><div class="linkline"><code>${url}</code><button class="btn sm" id="copy">Copiar</button></div>
+      <div class="acts"><button class="btn primary" id="png">Baixar PNG</button><button class="btn" id="open">Ver como convidado</button></div>
+      <small class="muted">Imprima para o estande ou envie o link pelo WhatsApp. Gerar um novo link desativa o anterior.</small></div></div>`));
+  makeQR(tab.querySelector("#qr"), url);
+  tab.querySelector("#copy").onclick = () => navigator.clipboard.writeText(url).then(() => toast("Link copiado"), () => toast("Selecione o link para copiar"));
+  tab.querySelector("#png").onclick = () => toast("Na aplicação, baixa giro360-qr-evento.png em 1024 px");
+  tab.querySelector("#open").onclick = () => { state.view = "guest"; state.g.step = "landing"; render(); };
+  tab.querySelector("#fs").onchange = (x) => { e.faces = x.target.checked; toast(e.faces ? "Busca facial ligada. Indexando capturas autorizadas." : "Busca facial desligada. Novas buscas bloqueadas."); };
+  tab.querySelector("#br").onchange = (x) => { e.browse = x.target.checked; toast("Preferência salva"); };
+  tab.querySelector("#edit").onclick = () => { const m = document.querySelector(".amain"); m.innerHTML = ""; eventForm(m, e); };
+  tab.querySelector("#close").onclick = () => { e.status = e.status === "closed" ? "active" : "closed"; toast(e.status === "closed" ? "Evento encerrado. Downloads continuam até o prazo." : "Evento reaberto"); render(); };
+  tab.querySelector("#bio").onclick = () => confirmBox("Excluir dados biométricos deste evento?", "A coleção facial é apagada e a busca por selfie é desligada. Fotos, vídeos e QRs individuais continuam disponíveis.", "Excluir", () => { e.faces = false; e.media.forEach((m) => m.face = "off"); toast("Dados biométricos removidos"); render(); });
+}
+function makeQR(el, text) {
+  try { new QRCode(el, { text, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M }); }
+  catch { el.textContent = "QR indisponível"; el.style.cssText = "width:200px;height:200px;display:grid;place-items:center;color:#555"; }
+}
+function confirmBox(title, text, label, fn) {
+  overlay.innerHTML = ""; const el = h(`<div class="modal"><div class="box"><h2 style="font-size:19px">${title}</h2><p class="muted" style="margin:0">${text}</p><div class="acts"><button class="btn primary" id="y">${label}</button><button class="btn" id="n">Cancelar</button></div></div></div>`);
+  el.querySelector("#y").onclick = () => { overlay.innerHTML = ""; fn(); }; el.querySelector("#n").onclick = () => overlay.innerHTML = ""; overlay.append(el);
+}
+const ST = { queued: ["Na fila", "p-mute"], uploading: ["Enviando", "p-info"], received: ["Recebido", "p-info"], processing: ["Processando", "p-warn"], ready: ["Disponível", "p-ok"], failed: ["Falhou", "p-bad"], waiting: ["Selecione de novo", "p-warn"], duplicate: ["Já enviado", "p-mute"] };
+function upload(tab, e) {
+  const a = state.a;
+  tab.append(h(`<div class="panel"><h2>Enviar fotos e vídeos</h2>
+    <div class="drop" id="drop"><b>Arraste uma pasta ou arquivos aqui</b><small>Aceitos: JPEG e PNG até 50 MB · MP4 até 8 GB. Vídeos grandes vão em partes de 16 MB e retomam de onde pararam.</small>
+    <div class="acts" style="justify-content:center"><label class="btn primary" for="fi">Selecionar arquivos</label><label class="btn" for="fd">Selecionar pasta</label><button class="btn" id="sample">Usar arquivos de exemplo</button></div>
+    <input type="file" id="fi" multiple accept="image/jpeg,image/png,video/mp4" hidden><input type="file" id="fd" webkitdirectory hidden></div>
+    <label class="toggle"><input type="checkbox" id="cons"><span><b>Todos os participantes destas capturas autorizaram a busca facial</b><small>Marque só se a autorização foi registrada antes da captura. Na dúvida, deixe desmarcado: o arquivo fica disponível por QR individual, sem biometria.</small></span></label>
+    <label class="toggle"><input type="checkbox" id="unst" ${a.unstable ? "checked" : ""}><span><b>Simular internet instável</b><small>Algumas partes falham e são retomadas; um arquivo falha de vez para testar “Tentar novamente”.</small></span></label>
+    <div class="row"><h2 style="margin-right:auto">Fila de envio</h2><span class="muted" id="sum"></span><button class="btn sm" id="retry">Tentar novamente os que falharam</button></div><div class="uplist" id="ul"></div></div>`));
+  tab.querySelector("#unst").onchange = (x) => a.unstable = x.target.checked;
+  const add = (files) => {
+    const cons = tab.querySelector("#cons").checked;
+    [...files].forEach((f) => {
+      const ok = /^(image\/(jpeg|png)|video\/mp4)$/.test(f.type);
+      const lim = f.type.startsWith("video") ? 8e9 : 50e6;
+      const u = { name: f.name, size: f.size, kind: f.type.startsWith("video") ? "video" : "photo", type: f.type, cons, parts: Math.max(1, Math.ceil(f.size / 16e6)), done: 0, state: "queued", note: "" };
+      if (!ok) { u.state = "failed"; u.note = "Formato não aceito. Use JPEG, PNG ou MP4."; u.fatal = true; }
+      else if (f.size > lim) { u.state = "failed"; u.note = "Acima do limite de tamanho."; u.fatal = true; }
+      else if (a.uploads.some((x) => x.name === f.name && x.size === f.size && x.state === "ready")) { u.state = "duplicate"; u.note = "Este arquivo já foi recebido; nada foi enviado de novo."; }
+      a.uploads.unshift(u);
+    });
+    pump(e); draw();
+  };
+  tab.querySelector("#fi").onchange = (x) => add(x.target.files);
+  tab.querySelector("#fd").onchange = (x) => add(x.target.files);
+  const drop = tab.querySelector("#drop");
+  drop.ondragover = (x) => { x.preventDefault(); drop.classList.add("over"); }; drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = (x) => { x.preventDefault(); drop.classList.remove("over"); add(x.dataTransfer.files); };
+  tab.querySelector("#sample").onclick = () => add([
+    { name: "totem_0412.jpg", size: 4.1e6, type: "image/jpeg" }, { name: "totem_0413.jpg", size: 3.9e6, type: "image/jpeg" },
+    { name: "IMG_0001.jpg", size: 3.2e6, type: "image/jpeg" }, { name: "IMG_0001.jpg", size: 5.6e6, type: "image/jpeg" },
+    { name: "giro360_take07.mp4", size: 182e6, type: "video/mp4" }, { name: "convite.pdf", size: 1e6, type: "application/pdf" }]);
+  tab.querySelector("#retry").onclick = () => { a.uploads.filter((u) => u.state === "failed" && !u.fatal).forEach((u) => { u.state = "queued"; u.note = "Retomando: " + u.done + " de " + u.parts + " partes já confirmadas"; u.forceOk = true; }); pump(e); draw(); };
+  function draw() {
+    const ul = tab.querySelector("#ul"); if (!ul) return; ul.innerHTML = "";
+    if (!a.uploads.length) ul.append(h(`<p class="muted" style="margin:0">Nenhum arquivo na fila. Experimente “Usar arquivos de exemplo”: inclui dois arquivos com o mesmo nome e conteúdos diferentes, que são preservados.</p>`));
+    a.uploads.forEach((u) => { const s = ST[u.state];
+      ul.append(h(`<div class="up"><span class="nm">${esc(u.name)}</span><span class="pill ${s[1]}">${s[0]}</span><div class="bar"><i style="width:${u.state === "ready" || u.state === "processing" || u.state === "received" ? 100 : Math.round(u.done / u.parts * 100)}%"></i></div>
+        <span class="sub">${u.kind === "video" ? "Vídeo" : "Foto"} · ${mb(u.size)}${u.parts > 1 ? ` · parte ${u.done} de ${u.parts}` : ""}${u.note ? " · " + esc(u.note) : ""}</span></div>`)); });
+    const c = (k) => a.uploads.filter((u) => u.state === k).length;
+    tab.querySelector("#sum").textContent = `${c("ready")} disponíveis · ${c("uploading") + c("processing") + c("queued")} em andamento · ${c("failed")} com falha`;
+  }
+  a.redraw = draw; draw();
+}
+function pump(e) {
+  const a = state.a;
+  if (a.timer) return;
+  a.timer = setInterval(() => {
+    const active = a.uploads.filter((u) => ["queued", "uploading", "received", "processing"].includes(u.state));
+    if (!active.length) { clearInterval(a.timer); a.timer = null; }
+    active.slice(0, 3).forEach((u) => {
+      if (u.state === "queued") { u.state = "uploading"; return; }
+      if (u.state === "uploading") {
+        if (a.unstable && !u.forceOk && Math.random() < 0.25) { u.note = `conexão caiu, repetindo parte ${u.done + 1}`; if (u.kind === "video" && u.done > 3 && !u.failedOnce) { u.failedOnce = true; u.state = "failed"; u.note = `envio interrompido. ${u.done} de ${u.parts} partes confirmadas e preservadas`; } return; }
+        u.done = Math.min(u.parts, u.done + (u.parts > 4 ? 2 : 1)); u.note = "";
+        if (u.done >= u.parts) u.state = "received"; return;
+      }
+      if (u.state === "received") { u.state = "processing"; u.note = u.kind === "video" ? "gerando prévia e extraindo quadros" : "gerando miniaturas"; return; }
+      if (u.state === "processing") { u.state = "ready"; u.note = u.cons && e.faces ? "na busca facial" : "disponível por QR individual";
+        e.media.unshift(mk(u.kind, [Math.floor(Math.random() * 6)], { name: u.name, size: u.size, consent: u.cons ? "granted_all" : "pending", face: u.cons && e.faces ? "indexed" : "off" })); }
+    });
+    if (a.redraw && document.querySelector("#ul")) a.redraw();
+  }, 450);
+}
+const FACE = { indexed: ["Na busca", "p-ok"], queued: ["Na fila da IA", "p-warn"], off: ["Fora da busca", "p-mute"], failed: ["IA falhou", "p-bad"] };
+function mediaTab(tab, e) {
+  const a = state.a;
+  tab.append(h(`<div class="panel"><div class="row"><h2 style="margin-right:auto">Mídias</h2><div class="seg">${[["all", "Todas"], ["photo", "Fotos"], ["video", "Vídeos"], ["pending", "Sem autorização"], ["off", "Despublicadas"]].map(([k, l]) => `<button data-k="${k}" aria-pressed="${a.filter === k}">${l}</button>`).join("")}</div></div>
+    <div class="tablewrap"><table><thead><tr><th></th><th>Arquivo</th><th>Situação</th><th>Busca facial</th><th>Ações</th></tr></thead><tbody></tbody></table></div></div>`));
+  tab.querySelectorAll("[data-k]").forEach((b) => b.onclick = () => { a.filter = b.dataset.k; render(); });
+  const tb = tab.querySelector("tbody");
+  e.media.filter((m) => a.filter === "all" || m.kind === a.filter || (a.filter === "pending" && m.consent === "pending") || (a.filter === "off" && !m.published)).forEach((m) => {
+    const st = m.published ? ST[m.status] : ["Despublicada", "p-mute"], fc = FACE[m.face] || FACE.off;
+    const row = h(`<tr><td></td><td><b style="display:block;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.name)}</b><small class="muted">${m.kind === "video" ? "Vídeo " + mmss(m.dur) : "Foto"} · ${mb(m.size)}</small></td>
+      <td><span class="pill ${st[1]}">${st[0]}</span></td><td><span class="pill ${fc[1]}">${fc[0]}</span>${m.consent === "pending" ? `<br><small class="muted">aguardando autorização</small>` : ""}</td>
+      <td><div class="acts"><button class="btn sm" data-a="qr">QR individual</button><button class="btn sm" data-a="pub">${m.published ? "Despublicar" : "Publicar"}</button>${m.consent === "pending" ? `<button class="btn sm" data-a="ok">Registrar autorização</button>` : ""}</div></td></tr>`);
+    row.querySelector("td").append(canvasFor(112, 112, m.seed, m.personas, { ring: m.kind === "video" }));
+    row.querySelector("[data-a=qr]").onclick = () => shareModal(m);
+    row.querySelector("[data-a=pub]").onclick = () => { m.published = !m.published; if (!m.published) m.face = "off"; else if (m.consent === "granted_all" && e.faces) m.face = "indexed"; toast(m.published ? "Mídia publicada" : "Mídia despublicada. Links e busca bloqueados."); render(); };
+    const okb = row.querySelector("[data-a=ok]"); if (okb) okb.onclick = () => confirmBox("Registrar autorização desta captura?", "Confirme que todos os participantes que aparecem nesta captura autorizaram a busca facial antes da captura. O registro fica vinculado à mídia com seu usuário e horário.", "Confirmar autorização", () => { m.consent = "granted_all"; m.face = e.faces ? "indexed" : "off"; toast("Autorização registrada"); render(); });
+    tb.append(row);
+  });
+}
+function shareModal(m) {
+  if (!m.published || m.status !== "ready") { toast("Publique a mídia e aguarde o processamento para gerar o QR"); return; }
+  const token = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 57]).join(""), url = `${BASE}/m/${token}`;
+  overlay.innerHTML = "";
+  const el = h(`<div class="modal"><div class="box qrbox"><h2 style="font-size:19px">QR individual</h2><p class="muted" style="margin:0">Abre só este ${m.kind === "video" ? "vídeo" : "arquivo"}, sem selfie. Válido por 90 dias e revogável.</p><div class="qr" id="q"></div>
+    <div class="linkline"><code>${url}</code></div><div class="acts" style="justify-content:center"><button class="btn primary" id="open">Abrir como convidado</button><button class="btn" id="png">Baixar PNG</button><button class="btn" id="x">Fechar</button></div></div></div>`);
+  makeQR(el.querySelector("#q"), url);
+  el.querySelector("#x").onclick = () => overlay.innerHTML = "";
+  el.querySelector("#png").onclick = () => toast("Na aplicação, baixa o QR em PNG para imprimir");
+  el.querySelector("#open").onclick = () => { state.capture = m; state.captureFrom = "admin"; state.view = "capture"; render(); };
+  overlay.append(el);
+}
+function consentTab(tab, e) {
+  e.consents = e.consents || [{ who: "Ana Souza", ref: "Totem sessão 14", term: "v1-2026", at: "14/11 19:42", by: "Lia (produção)" }, { who: "Grupo Diego, Fábio", ref: "Plataforma take 07", term: "v1-2026", at: "14/11 20:10", by: "Lia (produção)" }];
+  tab.append(h(`<div class="two"><div class="panel"><h2>Autorizações registradas</h2><p class="muted" style="margin:0">Registre antes da captura. Em capturas de grupo, só marque a mídia como autorizada quando todos os participantes tiverem autorizado.</p>
+    <div class="tablewrap"><table><thead><tr><th>Participante</th><th>Captura</th><th>Termo</th><th>Quando</th></tr></thead><tbody>${e.consents.map((c) => `<tr><td>${esc(c.who)}</td><td>${esc(c.ref)}</td><td>${esc(c.term)}</td><td>${esc(c.at)}<br><small class="muted">${esc(c.by)}</small></td></tr>`).join("")}</tbody></table></div></div>
+    <form class="panel" id="f"><h2>Nova autorização</h2><div class="field"><label for="w">Nome do participante</label><input id="w" required></div>
+    <div class="field"><label for="ref">Referência da captura</label><input id="ref" placeholder="Ex.: Totem sessão 15"></div>
+    <div class="field"><label for="t">Versão do termo</label><select id="t"><option>v1-2026</option></select><small>O texto do termo precisa ser revisado pela Giro antes do uso com convidados reais.</small></div>
+    <button class="btn primary">Registrar</button></form></div>`));
+  tab.querySelector("#f").onsubmit = (x) => { x.preventDefault(); e.consents.unshift({ who: tab.querySelector("#w").value, ref: tab.querySelector("#ref").value || "—", term: "v1-2026", at: "agora", by: "você" }); toast("Autorização registrada"); render(); };
+}
+function settings(main) {
+  main.append(h(`<div class="row"><h1>Configurações</h1></div><div class="two"><div class="panel"><h2>Identidade visual</h2>
+    <div class="field"><label for="lg">Logo oficial da Giro 360</label><input id="lg" type="file" accept="image/png,image/jpeg"><small>Enquanto não houver logo, as páginas mostram o nome “Giro 360” em texto.</small></div>
+    <div class="field"><label for="rc">Canal para pedidos de remoção</label><input id="rc" value="privacidade@giro360.com.br"><small>Aparece no rodapé de todas as galerias.</small></div><button class="btn primary" id="sv">Salvar</button></div>
+    <div class="panel"><h2>Custo estimado deste mês</h2><div class="stats"><div class="stat"><b>38 GB</b><span>Armazenamento</span></div><div class="stat"><b>1.240</b><span>Fotos indexadas</span></div><div class="stat"><b>2.980</b><span>Quadros de vídeo</span></div><div class="stat"><b>612</b><span>Buscas</span></div></div>
+    <p class="muted" style="margin:0">Valores de exemplo. A aplicação calcula a partir do uso real registrado por evento.</p></div></div>`));
+  main.querySelector("#sv").onclick = () => toast("Configurações salvas");
+}
+render();
+</script>
