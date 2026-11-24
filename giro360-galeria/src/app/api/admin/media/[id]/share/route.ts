@@ -26,7 +26,7 @@ export const POST = route(async (req: Request, ctx: Ctx) => {
   if (!isUuid(id)) throw new HttpError(404, "Arquivo não encontrado.");
   const m = await getMedia(id);
   const link = await createShareLink(m.event_id, m.id, admin.id);
-  const qr = await QRCode.toDataURL(link.url, { width: 720, margin: 2, errorCorrectionLevel: "M" });
+  const qr = await QRCode.toString(link.url, { type: "svg", margin: 2, errorCorrectionLevel: "M" });
   return json({ ...link, qr });
 });
 

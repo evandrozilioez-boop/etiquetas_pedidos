@@ -6,7 +6,7 @@ import { GuestApp } from "@/components/guest/GuestApp";
 import { accessOpen, faceOpen, findEventByToken } from "@/lib/events";
 import { guestCookieName, listHighlights } from "@/lib/access";
 import { verifyJwt } from "@/lib/auth";
-import { q1 } from "@/lib/db";
+import { nowIso, q1 } from "@/lib/db";
 import { getSettings, whatsappLink } from "@/lib/settings";
 import { presignGet } from "@/lib/storage";
 import { isMockFaces } from "@/lib/config";
@@ -30,7 +30,7 @@ export default async function EventPage({ params }: Props) {
   const payload = await verifyJwt<{ sid: string; eid: string }>(jwt, "guest");
   let verified = false;
   if (payload?.eid === event.id) {
-    const s = await q1<{ code_verified: boolean }>("select code_verified from guest_sessions where id=$1 and expires_at > now()", [payload.sid]);
+    const s = await q1<{ code_verified: boolean }>("select code_verified from guest_sessions where id=$1 and expires_at > $2", [payload.sid, nowIso()]);
     verified = !!s && (s.code_verified || !event.is_private);
   }
   const coverUrl = event.cover_key ? await presignGet(event.cover_key, { ttl: 3600 }) : null;

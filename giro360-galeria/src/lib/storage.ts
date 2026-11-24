@@ -1,89 +1,61 @@
-import {
-  S3Client,
-  HeadObjectCommand,
-  GetObjectCommand,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  DeleteObjectsCommand,
-  ListObjectsV2Command,
-  CreateMultipartUploadCommand,
-  UploadPartCommand,
-  ListPartsCommand,
-  CompleteMultipartUploadCommand,
-  AbortMultipartUploadCommand,
-  CreateBucketCommand,
-  HeadBucketCommand,
-  PutBucketCorsCommand,
-  type Part,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Readable } from "node:stream";
+import { AwsClient } from "aws4fetch";
 import { config } from "./config";
+export { keys } from "./storage-keys";
 
 /**
- * Armazenamento privado compatível com S3 (Cloudflare R2 em produção, MinIO no ambiente local).
+ * Armazenamento privado compatível com S3 (Cloudflare R2 em produção, MinIO no ambiente local), via API S3
+ * assinada (aws4fetch). Funciona igual no Worker, no Container de processamento e em scripts Node.
  * Nunca há leitura pública: toda visualização ou download passa por URL assinada de curta duração,
  * emitida somente depois de a aplicação autorizar o acesso.
  */
 
-let internal: S3Client | null = null;
-let publicClient: S3Client | null = null;
-
-function makeClient(endpoint?: string) {
-  const c = config();
-  return new S3Client({
-    region: c.S3_REGION,
-    endpoint,
-    forcePathStyle: c.S3_FORCE_PATH_STYLE,
-    credentials: { accessKeyId: c.S3_ACCESS_KEY_ID, secretAccessKey: c.S3_SECRET_ACCESS_KEY },
-    // R2/MinIO + URLs assinadas: não exigir checksums CRC adicionais do navegador.
-    requestChecksumCalculation: "WHEN_REQUIRED",
-    responseChecksumValidation: "WHEN_REQUIRED",
-  });
-}
-
-/** Cliente usado pelo servidor/worker (endpoint interno, ex.: http://minio:9000 no Docker). */
-export function s3(): S3Client {
-  if (!internal) internal = makeClient(config().S3_ENDPOINT);
-  return internal;
-}
-
-/** Cliente usado só para assinar URLs que o navegador vai acessar (endpoint público). */
-function signer(): S3Client {
-  if (!publicClient) {
+let client: AwsClient | null = null;
+function aws() {
+  if (!client) {
     const c = config();
-    publicClient = c.S3_PUBLIC_ENDPOINT && c.S3_PUBLIC_ENDPOINT !== c.S3_ENDPOINT ? makeClient(c.S3_PUBLIC_ENDPOINT) : s3();
+    client = new AwsClient({ accessKeyId: c.S3_ACCESS_KEY_ID, secretAccessKey: c.S3_SECRET_ACCESS_KEY, service: "s3", region: c.S3_REGION });
   }
-  return publicClient;
+  return client;
 }
 
-const bucket = () => config().S3_BUCKET;
-
-export const keys = {
-  original: (eventId: string, mediaId: string, ext: string) => `events/${eventId}/originals/${mediaId}.${ext}`,
-  derived: (eventId: string, mediaId: string, name: string) => `events/${eventId}/derived/${mediaId}/${name}`,
-  cover: (eventId: string, id: string, ext: string) => `events/${eventId}/cover/${id}.${ext}`,
-  eventPrefix: (eventId: string) => `events/${eventId}/`,
-  logo: (id: string, ext: string) => `brand/logo-${id}.${ext}`,
-};
-
-export async function presignGet(
-  key: string,
-  opts: { downloadName?: string; contentType?: string; ttl?: number } = {},
-): Promise<string> {
-  const cmd = new GetObjectCommand({
-    Bucket: bucket(),
-    Key: key,
-    ResponseContentDisposition: opts.downloadName ? contentDisposition(opts.downloadName) : undefined,
-    ResponseContentType: opts.contentType,
-    ResponseCacheControl: "private, max-age=600",
-  });
-  return getSignedUrl(signer(), cmd, { expiresIn: opts.ttl ?? config().SIGNED_URL_TTL_SEC });
+export function resetStorageForTests() {
+  client = null;
 }
 
-export async function presignPut(key: string, contentType: string, ttl = 3600): Promise<string> {
-  const cmd = new PutObjectCommand({ Bucket: bucket(), Key: key, ContentType: contentType });
-  return getSignedUrl(signer(), cmd, { expiresIn: ttl });
+const encodeKey = (key: string) => key.split("/").map(encodeURIComponent).join("/");
+
+function objectUrl(key: string, publicEndpoint = false) {
+  const c = config();
+  const base = (publicEndpoint ? c.S3_PUBLIC_ENDPOINT ?? c.S3_ENDPOINT : c.S3_ENDPOINT)?.replace(/\/$/, "");
+  if (!base) throw new Error("S3_ENDPOINT não configurado");
+  // Estilo de caminho (endpoint/bucket/chave): aceito por R2 e MinIO.
+  return new URL(`${base}/${c.S3_BUCKET}${key ? "/" + encodeKey(key) : ""}`);
+}
+
+export class StorageError extends Error {
+  constructor(message: string, public status: number, public code?: string) {
+    super(message);
+  }
+}
+
+async function call(method: string, url: URL, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
+  const res = await aws().fetch(url.toString(), { method, body: init.body, headers: init.headers });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    const code = text.match(/<Code>([^<]+)<\/Code>/)?.[1];
+    throw new StorageError(`Armazenamento: ${method} ${res.status} ${code ?? ""}`.trim(), res.status, code);
+  }
+  return res;
+}
+
+const tag = (xml: string, name: string) => xml.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1];
+const tags = (xml: string, name: string) => [...xml.matchAll(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`, "g"))].map((m) => m[1]);
+const unxml = (s: string) => s.replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#34;/g, '"');
+
+async function presign(method: string, url: URL, ttl: number) {
+  url.searchParams.set("X-Amz-Expires", String(ttl));
+  const signed = await aws().sign(url.toString(), { method, aws: { signQuery: true } });
+  return signed.url;
 }
 
 export function contentDisposition(filename: string) {
@@ -91,148 +63,133 @@ export function contentDisposition(filename: string) {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
+export async function presignGet(key: string, opts: { downloadName?: string; contentType?: string; ttl?: number } = {}) {
+  const url = objectUrl(key, true);
+  if (opts.downloadName) url.searchParams.set("response-content-disposition", contentDisposition(opts.downloadName));
+  if (opts.contentType) url.searchParams.set("response-content-type", opts.contentType);
+  url.searchParams.set("response-cache-control", "private, max-age=600");
+  return presign("GET", url, opts.ttl ?? config().SIGNED_URL_TTL_SEC);
+}
+
+export async function presignPut(key: string, _contentType: string, ttl = 3600) {
+  return presign("PUT", objectUrl(key, true), ttl);
+}
+
 export async function headObject(key: string): Promise<{ size: number; contentType?: string } | null> {
-  try {
-    const r = await s3().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
-    return { size: Number(r.ContentLength ?? 0), contentType: r.ContentType };
-  } catch (err: any) {
-    if (err?.$metadata?.httpStatusCode === 404 || err?.name === "NotFound" || err?.name === "NoSuchKey") return null;
-    throw err;
-  }
+  const res = await aws().fetch(objectUrl(key).toString(), { method: "HEAD" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new StorageError(`Armazenamento: HEAD ${res.status}`, res.status);
+  return { size: Number(res.headers.get("content-length") ?? 0), contentType: res.headers.get("content-type") ?? undefined };
 }
 
-export async function getObjectStream(key: string): Promise<Readable> {
-  const r = await s3().send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
-  return r.Body as Readable;
+export async function getObject(key: string): Promise<Response> {
+  return call("GET", objectUrl(key));
 }
 
-export async function getObjectBuffer(key: string): Promise<Buffer> {
-  const stream = await getObjectStream(key);
-  const chunks: Buffer[] = [];
-  for await (const c of stream) chunks.push(Buffer.from(c));
-  return Buffer.concat(chunks);
+export async function getObjectBuffer(key: string): Promise<Uint8Array> {
+  return new Uint8Array(await (await getObject(key)).arrayBuffer());
 }
 
-export async function putObject(key: string, body: Buffer | Readable, contentType: string) {
-  await s3().send(new PutObjectCommand({ Bucket: bucket(), Key: key, Body: body, ContentType: contentType }));
+export async function putObject(key: string, body: Uint8Array | ArrayBuffer | string, contentType: string) {
+  await call("PUT", objectUrl(key), { body: body as BodyInit, headers: { "Content-Type": contentType } });
 }
 
 export async function deleteObject(key: string) {
-  await s3().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
-}
-
-/** Remove todos os objetos com um prefixo. Retorna quantos foram apagados. */
-export async function deletePrefix(prefix: string): Promise<number> {
-  let token: string | undefined;
-  let total = 0;
-  do {
-    const list = await s3().send(new ListObjectsV2Command({ Bucket: bucket(), Prefix: prefix, ContinuationToken: token }));
-    const objs = (list.Contents ?? []).map((o) => ({ Key: o.Key! }));
-    if (objs.length) {
-      const r = await s3().send(new DeleteObjectsCommand({ Bucket: bucket(), Delete: { Objects: objs, Quiet: true } }));
-      if (r.Errors?.length) throw new Error(`Falha ao apagar ${r.Errors.length} objeto(s): ${r.Errors[0].Message}`);
-      total += objs.length;
-    }
-    token = list.IsTruncated ? list.NextContinuationToken : undefined;
-  } while (token);
-  return total;
+  const res = await aws().fetch(objectUrl(key).toString(), { method: "DELETE" });
+  if (!res.ok && res.status !== 404) throw new StorageError(`Armazenamento: DELETE ${res.status}`, res.status);
 }
 
 export async function listKeys(prefix: string): Promise<{ key: string; size: number }[]> {
   const out: { key: string; size: number }[] = [];
   let token: string | undefined;
   do {
-    const list = await s3().send(new ListObjectsV2Command({ Bucket: bucket(), Prefix: prefix, ContinuationToken: token }));
-    for (const o of list.Contents ?? []) out.push({ key: o.Key!, size: Number(o.Size ?? 0) });
-    token = list.IsTruncated ? list.NextContinuationToken : undefined;
+    const url = objectUrl("");
+    url.searchParams.set("list-type", "2");
+    url.searchParams.set("prefix", prefix);
+    if (token) url.searchParams.set("continuation-token", token);
+    const xml = await (await call("GET", url)).text();
+    for (const c of tags(xml, "Contents")) out.push({ key: unxml(tag(c, "Key") ?? ""), size: Number(tag(c, "Size") ?? 0) });
+    token = tag(xml, "IsTruncated") === "true" ? unxml(tag(xml, "NextContinuationToken") ?? "") : undefined;
   } while (token);
   return out;
+}
+
+/** Remove todos os objetos com um prefixo. Retorna quantos foram apagados. */
+export async function deletePrefix(prefix: string): Promise<number> {
+  const list = await listKeys(prefix);
+  for (let i = 0; i < list.length; i += 8) await Promise.all(list.slice(i, i + 8).map((o) => deleteObject(o.key)));
+  return list.length;
 }
 
 // ---------- Multipart (vídeos grandes, retomável) ----------
 
 export async function createMultipart(key: string, contentType: string): Promise<string> {
-  const r = await s3().send(new CreateMultipartUploadCommand({ Bucket: bucket(), Key: key, ContentType: contentType }));
-  if (!r.UploadId) throw new Error("Armazenamento não retornou UploadId");
-  return r.UploadId;
+  const url = objectUrl(key);
+  url.searchParams.set("uploads", "");
+  const xml = await (await call("POST", url, { headers: { "Content-Type": contentType } })).text();
+  const id = tag(xml, "UploadId");
+  if (!id) throw new Error("Armazenamento não retornou UploadId");
+  return unxml(id);
 }
 
 export async function presignPart(key: string, uploadId: string, partNumber: number, ttl = 3600) {
-  const cmd = new UploadPartCommand({ Bucket: bucket(), Key: key, UploadId: uploadId, PartNumber: partNumber });
-  return getSignedUrl(signer(), cmd, { expiresIn: ttl });
+  const url = objectUrl(key, true);
+  url.searchParams.set("partNumber", String(partNumber));
+  url.searchParams.set("uploadId", uploadId);
+  return presign("PUT", url, ttl);
 }
 
 /** Partes já confirmadas pelo armazenamento — fonte da verdade para retomar um envio. */
 export async function listParts(key: string, uploadId: string): Promise<{ partNumber: number; etag: string; size: number }[]> {
-  const parts: Part[] = [];
+  const parts: { partNumber: number; etag: string; size: number }[] = [];
   let marker: string | undefined;
   for (;;) {
-    const r = await s3().send(
-      new ListPartsCommand({ Bucket: bucket(), Key: key, UploadId: uploadId, PartNumberMarker: marker }),
-    );
-    parts.push(...(r.Parts ?? []));
-    if (!r.IsTruncated) break;
-    marker = r.NextPartNumberMarker;
+    const url = objectUrl(key);
+    url.searchParams.set("uploadId", uploadId);
+    if (marker) url.searchParams.set("part-number-marker", marker);
+    const xml = await (await call("GET", url)).text();
+    for (const p of tags(xml, "Part")) {
+      parts.push({ partNumber: Number(tag(p, "PartNumber")), etag: unxml(tag(p, "ETag") ?? ""), size: Number(tag(p, "Size") ?? 0) });
+    }
+    if (tag(xml, "IsTruncated") !== "true") break;
+    marker = tag(xml, "NextPartNumberMarker");
   }
-  return parts.map((p) => ({ partNumber: p.PartNumber!, etag: p.ETag!, size: Number(p.Size ?? 0) }));
+  return parts;
 }
 
 export async function completeMultipart(key: string, uploadId: string, parts: { partNumber: number; etag: string }[]) {
-  await s3().send(
-    new CompleteMultipartUploadCommand({
-      Bucket: bucket(),
-      Key: key,
-      UploadId: uploadId,
-      MultipartUpload: { Parts: parts.sort((a, b) => a.partNumber - b.partNumber).map((p) => ({ PartNumber: p.partNumber, ETag: p.etag })) },
-    }),
-  );
+  const url = objectUrl(key);
+  url.searchParams.set("uploadId", uploadId);
+  const body =
+    "<CompleteMultipartUpload>" +
+    [...parts]
+      .sort((a, b) => a.partNumber - b.partNumber)
+      .map((p) => `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>${p.etag.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</ETag></Part>`)
+      .join("") +
+    "</CompleteMultipartUpload>";
+  const xml = await (await call("POST", url, { body, headers: { "Content-Type": "application/xml" } })).text();
+  if (xml.includes("<Error>")) throw new StorageError(`Armazenamento: falha ao concluir envio (${tag(xml, "Code")})`, 500, tag(xml, "Code"));
 }
 
 export async function abortMultipart(key: string, uploadId: string) {
-  try {
-    await s3().send(new AbortMultipartUploadCommand({ Bucket: bucket(), Key: key, UploadId: uploadId }));
-  } catch (err: any) {
-    if (err?.name === "NoSuchUpload" || err?.$metadata?.httpStatusCode === 404) return;
-    throw err;
-  }
+  const url = objectUrl(key);
+  url.searchParams.set("uploadId", uploadId);
+  const res = await aws().fetch(url.toString(), { method: "DELETE" });
+  if (!res.ok && res.status !== 404) throw new StorageError(`Armazenamento: abort ${res.status}`, res.status);
 }
 
-export function isNoSuchUpload(err: any) {
-  return err?.name === "NoSuchUpload" || err?.Code === "NoSuchUpload";
+export function isNoSuchUpload(err: unknown) {
+  return err instanceof StorageError && (err.code === "NoSuchUpload" || err.status === 404);
 }
 
-// ---------- Preparação do bucket (ambiente local / primeira configuração) ----------
-
+/** Cria o bucket se não existir (usado no ambiente local com MinIO; no R2 o bucket é criado pelo wrangler). */
 export async function ensureBucket(log = console.log) {
-  const c = config();
-  try {
-    await s3().send(new HeadBucketCommand({ Bucket: bucket() }));
-    log(`Bucket "${bucket()}" já existe.`);
-  } catch {
-    await s3().send(new CreateBucketCommand({ Bucket: bucket() }));
-    log(`Bucket "${bucket()}" criado (privado).`);
+  const url = objectUrl("");
+  const head = await aws().fetch(url.toString(), { method: "HEAD" });
+  if (head.ok) {
+    log(`Bucket "${config().S3_BUCKET}" já existe.`);
+    return;
   }
-  const origins = (c.S3_CORS_ORIGINS ?? c.APP_URL).split(",").map((s) => s.trim()).filter(Boolean);
-  try {
-    await s3().send(
-      new PutBucketCorsCommand({
-        Bucket: bucket(),
-        CORSConfiguration: {
-          CORSRules: [
-            {
-              AllowedOrigins: origins,
-              AllowedMethods: ["GET", "PUT", "HEAD"],
-              AllowedHeaders: ["*"],
-              ExposeHeaders: ["ETag"],
-              MaxAgeSeconds: 3600,
-            },
-          ],
-        },
-      }),
-    );
-    log(`CORS configurado para: ${origins.join(", ")}`);
-  } catch (err: any) {
-    // MinIO não implementa PutBucketCors (usa MINIO_API_CORS_ALLOW_ORIGIN); R2 implementa.
-    log(`Aviso: CORS não aplicado pela API (${err?.name ?? err}). No MinIO isso é esperado.`);
-  }
+  await call("PUT", url);
+  log(`Bucket "${config().S3_BUCKET}" criado (privado).`);
 }

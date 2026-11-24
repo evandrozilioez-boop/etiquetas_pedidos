@@ -13,11 +13,11 @@ export const metadata: Metadata = { title: "Portfólio", robots: { index: true, 
 export default async function Portfolio() {
   const s = await getSettings();
   const events = await q<{ name: string; city: string; event_date: string; public_token: string; cover_thumb_key: string | null; thumb_key: string | null; n: string }>(
-    `select e.name, e.city, to_char(e.event_date,'YYYY-MM-DD') as event_date, e.public_token, e.cover_thumb_key,
-       (select m.thumb_key from media m where m.event_id=e.id and m.highlight and m.image_use and m.published and m.status='ready'
+    `select e.name, e.city, e.event_date, e.public_token, e.cover_thumb_key,
+       (select m.thumb_key from media m where m.event_id=e.id and m.highlight = 1 and m.image_use = 1 and m.published = 1 and m.status='ready'
         order by m.created_at limit 1) as thumb_key,
-       (select count(*) from media m where m.event_id=e.id and m.highlight and m.image_use and m.published and m.status='ready') as n
-     from events e where e.show_in_portfolio order by e.event_date desc`,
+       (select count(*) from media m where m.event_id=e.id and m.highlight = 1 and m.image_use = 1 and m.published = 1 and m.status='ready') as n
+     from events e where e.show_in_portfolio = 1 order by e.event_date desc`,
   );
   const list = events.filter((e) => Number(e.n) > 0 || e.cover_thumb_key);
   const cards = await Promise.all(

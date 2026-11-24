@@ -2,6 +2,12 @@
 
 Registro das decisões tomadas com a Giro 360. Elas substituem o que o pedido original dizia sobre prazos.
 
+## Hospedagem
+
+- **Somente GitHub + Cloudflare**: Workers (site/API), D1 (banco), R2 (arquivos), Queues (fila), Containers
+  (FFmpeg/sharp) e Cron; publicação pelo GitHub Actions. Plano Workers Paid.
+- Exceção aceita pela Giro: **Amazon Rekognition** apenas para a busca por selfie (a Cloudflare não tem busca facial pronta).
+
 ## Armazenamento
 
 - Fotos e vídeos ficam no **Cloudflare R2** (privado, links temporários assinados).
@@ -67,6 +73,7 @@ Os vídeos da Plataforma 360 ficam no app Fotos do iPhone e são enviados tanto 
 - Fotos HEIC do iPhone: o seletor do Safari converte para JPEG ao enviar (o campo aceita só JPEG/PNG/MP4/MOV),
   então o servidor não precisa decodificar HEIC.
 - Vídeos MOV/HEVC são aceitos e guardados como vieram; a prévia é sempre MP4 H.264 (até 720p) para tocar em qualquer celular.
+- O QR Code é gerado em SVG no servidor (nítido para gráfica) e convertido para PNG no navegador ao baixar.
 - O site pode ir ao ar sem IA (`FACE_PROVIDER=none`): galeria, QR individual, downloads, portfólio e envio funcionam;
   a busca por selfie aparece como indisponível.
 - A logo oficial está incluída em `public/brand/`; uma logo enviada em Configurações tem prioridade.

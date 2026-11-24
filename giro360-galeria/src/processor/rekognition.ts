@@ -7,8 +7,8 @@ import {
   SearchFacesByImageCommand,
   DeleteFacesCommand,
 } from "@aws-sdk/client-rekognition";
-import { config } from "../config";
-import { FaceProviderError, type FaceProvider } from "./types";
+import { config } from "@/lib/config";
+import { FaceProviderError, type FaceProvider } from "@/lib/faces/types";
 
 /**
  * Amazon Rekognition. Credenciais via cadeia padrão da AWS (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, perfil ou IAM role).

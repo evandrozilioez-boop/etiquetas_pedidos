@@ -29,7 +29,8 @@ export default async function SettingsPage() {
     `select coalesce(sum(units) filter (where kind='index_photo'),0) as photos,
             coalesce(sum(units) filter (where kind='index_video_frame'),0) as frames,
             coalesce(sum(units) filter (where kind in ('search','detect_selfie')),0) as searches
-     from ai_usage where created_at >= date_trunc('month', now())`,
+     from ai_usage where created_at >= $1`,
+    [new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString()],
   );
   const bytes = await q1<{ b: string }>("select coalesce(sum(size_bytes + derived_bytes),0) as b from media where status in ('received','processing','ready')");
   const c = config();

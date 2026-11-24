@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ["sharp", "pg", "@aws-sdk/client-rekognition"],
   async headers() {
     return [
       {
@@ -17,5 +17,8 @@ const nextConfig: NextConfig = {
     ];
   },
 };
+
+// Em `next dev`, disponibiliza os bindings locais da Cloudflare (D1, fila) via wrangler.
+if (process.env.NODE_ENV === "development") void initOpenNextCloudflareForDev();
 
 export default nextConfig;

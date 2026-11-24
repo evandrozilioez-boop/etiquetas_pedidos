@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { GuestShell } from "@/components/guest/GuestShell";
 import { isMockFaces } from "@/lib/config";
-import { MOCK_PERSONAS } from "@/lib/faces/mock";
+import { MOCK_PERSONAS } from "@/lib/faces/personas";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +20,9 @@ export default function DemoSelfies() {
           </div>
           <div className="grid">
             {MOCK_PERSONAS.map((p) => (
-              <a key={p.id} className="tile" href={`/api/demo/selfie/${p.id}`} download={`selfie-${p.name}.jpg`} aria-label={`Selfie de teste: ${p.name}`}>
+              <a key={p.id} className="tile" href={`/demo/selfie-${p.id}.jpg`} download={`selfie-${p.name}.jpg`} aria-label={`Selfie de teste: ${p.name}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/demo/selfie/${p.id}`} alt="" />
+                <img src={`/demo/selfie-${p.id}.jpg`} alt="" />
                 <span className="badge">{p.name}</span>
               </a>
             ))}

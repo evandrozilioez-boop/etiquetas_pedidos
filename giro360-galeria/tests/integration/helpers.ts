@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { pool, q } from "@/lib/db";
-import { runMigrations } from "@/lib/migrate";
-import { deletePrefix, ensureBucket } from "@/lib/storage";
+import { q } from "@/lib/db";
+import { deletePrefix, ensureBucket, resetStorageForTests } from "@/lib/storage";
 import { hashPassword } from "@/lib/auth";
-import { runOnce } from "@/worker/index";
-import { housekeeping } from "@/worker/maintenance";
+import { housekeeping } from "@/lib/jobs";
+import { localEnv, applyMigrations } from "../../scripts/local-env";
 
 import * as login from "@/app/api/admin/login/route";
 import * as eventsRoute from "@/app/api/admin/events/route";
@@ -15,11 +16,27 @@ import * as complete from "@/app/api/admin/events/[id]/uploads/[mediaId]/complet
 
 export const BASE = "http://localhost:3000";
 
+let env: Awaited<ReturnType<typeof localEnv>> | null = null;
+
+/** D1 local novo (workerd, como na Cloudflare), bucket de teste limpo, fila em memória e processador local. */
 export async function resetAll() {
-  await pool().query("drop schema public cascade; create schema public;");
-  await runMigrations(path.join(process.cwd(), "migrations"), () => undefined);
+  resetStorageForTests();
+  env = await localEnv({ persistPath: fs.mkdtempSync(path.join(os.tmpdir(), "giro360-test-d1-")) });
+  await applyMigrations(env.env.DB as any);
   await ensureBucket(() => undefined);
   await deletePrefix("");
+}
+
+export async function disposeAll() {
+  await env?.dispose();
+}
+
+export async function drain() {
+  await env!.drain();
+}
+
+export function pendingJobs() {
+  return env!.pending;
 }
 
 type CallOpts = { method?: string; body?: unknown; form?: FormData; cookie?: string; params?: Record<string, string>; headers?: Record<string, string> };
@@ -35,8 +52,7 @@ export async function call(handler: (req: Request, ctx: any) => Promise<Response
     headers["content-type"] = "application/json";
   }
   const req = new Request(BASE + url, { method: o.method ?? (body ? "POST" : "GET"), headers, body });
-  const res = await handler(req, { params: Promise.resolve(o.params ?? {}) });
-  return res;
+  return handler(req, { params: Promise.resolve(o.params ?? {}) });
 }
 
 export function cookieFrom(res: Response) {
@@ -45,12 +61,12 @@ export function cookieFrom(res: Response) {
 }
 
 export async function adminCookie() {
-  await q(
-    "insert into admin_users(email, name, password_hash) values ('teste@giro360.local','Teste',$1) on conflict (email) do nothing",
-    [await hashPassword("senha-de-teste-123")],
-  );
+  await q("insert into admin_users(id, email, name, password_hash) values ($1,'teste@giro360.local','Teste',$2) on conflict (email) do nothing", [
+    crypto.randomUUID(),
+    await hashPassword("senha-de-teste-123"),
+  ]);
   const res = await call(login.POST, "/api/admin/login", { body: { email: "teste@giro360.local", password: "senha-de-teste-123" } });
-  if (res.status !== 200) throw new Error(`login falhou: ${res.status}`);
+  if (res.status !== 200) throw new Error(`login falhou: ${res.status} ${await res.text()}`);
   return cookieFrom(res);
 }
 
@@ -99,9 +115,7 @@ export async function upload(
     const { urls } = await sign.json();
     let sent = 0;
     for (const n of todo) {
-      if (opts.stopAfterParts !== undefined && sent >= opts.stopAfterParts) {
-        return { mediaId: plan.mediaId as string, plan, completed: false };
-      }
+      if (opts.stopAfterParts !== undefined && sent >= opts.stopAfterParts) return { mediaId: plan.mediaId as string, plan, completed: false };
       const chunk = buf.subarray((n - 1) * plan.partSize, n * plan.partSize);
       const r = await fetch(urls[n], { method: "PUT", body: new Uint8Array(chunk) });
       if (!r.ok) throw new Error(`parte ${n}: ${r.status}`);
@@ -111,14 +125,6 @@ export async function upload(
   const c = await call(complete.POST, "/x", { cookie, params: { id: eventId, mediaId: plan.mediaId } });
   if (c.status !== 200) throw new Error(`complete: ${await c.text()}`);
   return { mediaId: plan.mediaId as string, plan, completed: true };
-}
-
-/** Executa a fila até esvaziar (como o worker faria). */
-export async function drain(max = 200) {
-  for (let i = 0; i < max; i++) {
-    if (!(await runOnce())) return;
-  }
-  throw new Error("fila não esvaziou");
 }
 
 export { housekeeping };

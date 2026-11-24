@@ -1,0 +1,19 @@
+# Variáveis do ambiente local (wrangler dev / npm run preview e scripts). Copie para .dev.vars.
+APP_ENV=development
+APP_URL=http://localhost:8787
+SESSION_SECRET=dev-segredo-local-com-mais-de-32-caracteres-123
+# MinIO local (docker compose up -d)
+S3_ENDPOINT=http://localhost:9000
+S3_PUBLIC_ENDPOINT=http://localhost:9000
+S3_REGION=us-east-1
+S3_BUCKET=giro360-midias
+S3_ACCESS_KEY_ID=giroadmin
+S3_SECRET_ACCESS_KEY=giroadmin-secret
+# mock = reconhecimento simulado (demonstração) | none | rekognition
+FACE_PROVIDER=mock
+# Processador local (npm run processor) no lugar do container
+PROCESSOR_URL=http://localhost:8080
+PROCESSOR_SECRET=dev-processador-local
+WHATSAPP_NUMBER=5548999990000
+ADMIN_EMAIL=admin@giro360.local
+ADMIN_PASSWORD=troque-esta-senha

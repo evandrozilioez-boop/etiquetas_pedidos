@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { q, q1, closePool } from "@/lib/db";
-import { demoPhoto, demoSelfie, demoVideo } from "@/lib/demo-media";
-import { setFaceProviderForTests } from "@/lib/faces";
-import { MockFaceProvider } from "@/lib/faces/mock";
-import { FaceProviderError } from "@/lib/faces/types";
-import { adminCookie, call, cookieFrom, createEvent, drain, fingerprint, housekeeping, resetAll, upload } from "./helpers";
+import { q, q1 } from "@/lib/db";
+import { demoPhoto, demoSelfie, demoVideo } from "@/processor/demo-media";
+import { setProcessor } from "@/lib/processor";
+import { ProcessorError } from "@/lib/processor-types";
+import { localProcessor } from "@/processor/local";
+import { enqueue } from "@/lib/queue";
+import { adminCookie, call, cookieFrom, createEvent, disposeAll, drain, fingerprint, housekeeping, resetAll, upload } from "./helpers";
 
 import * as session from "@/app/api/e/[token]/session/route";
 import * as search from "@/app/api/e/[token]/search/route";
@@ -60,8 +61,8 @@ beforeAll(async () => {
 }, 240_000);
 
 afterAll(async () => {
-  setFaceProviderForTests(null);
-  await closePool();
+  setProcessor(localProcessor);
+  await disposeAll();
 });
 
 describe("processamento", () => {
@@ -171,18 +172,18 @@ describe("QR individual", () => {
   it("entrega o arquivo mesmo com a IA fora do ar e para de funcionar ao revogar", async () => {
     const created = await (await call(shareRoute.POST, "/x", { cookie, params: { id: ids.bruno } })).json();
     expect(created.url).toMatch(/\/m\//);
-    expect(created.qr).toMatch(/^data:image\/png;base64,/);
+    expect(created.qr).toMatch(/^<svg /);
     const token = created.url.split("/m/")[1];
 
-    setFaceProviderForTests({
-      ...new MockFaceProvider(),
-      name: "mock",
-      ensureCollection: async () => { throw new FaceProviderError("IA fora do ar"); },
-      deleteCollection: async () => { throw new FaceProviderError("IA fora do ar"); },
-      indexFaces: async () => { throw new FaceProviderError("IA fora do ar"); },
-      detectFaces: async () => { throw new FaceProviderError("IA fora do ar"); },
-      searchByImage: async () => { throw new FaceProviderError("IA fora do ar"); },
-      deleteFaces: async () => { throw new FaceProviderError("IA fora do ar"); },
+    // IA/processador fora do ar: o QR individual não depende dele.
+    setProcessor({
+      ...localProcessor,
+      selfie: async () => {
+        throw new ProcessorError("IA fora do ar");
+      },
+      indexUnit: async () => {
+        throw new ProcessorError("IA fora do ar");
+      },
     });
     try {
       const dl = await call(shareDownload.GET, "/x", { params: { token } });
@@ -194,7 +195,7 @@ describe("QR individual", () => {
       expect(s.status).toBe(503);
       expect((await s.json()).code).toBe("search_unavailable");
     } finally {
-      setFaceProviderForTests(null);
+      setProcessor(localProcessor);
     }
 
     await call(shareRoute.DELETE, "/x", { method: "DELETE", cookie, params: { id: ids.bruno }, body: { linkId: created.id } });
@@ -211,6 +212,7 @@ describe("QR individual", () => {
     const j = await (await selfieSearch(evA, gc, ANA)).json();
     expect(j.items.map((i: any) => i.id)).not.toContain(ids.anaSolo);
     const pend = await q1("select count(*) as n from deletion_tasks where target='faces' and status='pending'");
+    expect(Number((await q1("select count(*) as n from face_records where media_id=$1", [ids.anaSolo])).n)).toBe(0);
     expect(Number(pend.n)).toBeGreaterThan(0);
     await housekeeping();
     const done = await q1("select count(*) as n from deletion_tasks where target='faces' and status='pending'");
@@ -247,7 +249,8 @@ describe("envio retomável e sem duplicação", () => {
     expect(vid.mediaId).toBe(ids.video);
     // repetir indexação/processamento (ex.: tarefa reexecutada após queda do worker)
     await q("update media set face_status='queued' where id=$1", [ids.video]);
-    await q("insert into jobs(type, payload) values ('index_faces', $1), ('process_media', $1)", [JSON.stringify({ mediaId: ids.video })]);
+    await enqueue("index_faces", { mediaId: ids.video });
+    await enqueue("process_media", { mediaId: ids.video });
     await drain();
     const after = await q1("select count(*) as n, sum(units) as u from ai_usage where event_id=$1", [evA.id]);
     expect(after.u).toBe(before.u);
@@ -272,7 +275,7 @@ describe("envio retomável e sem duplicação", () => {
 
 describe("prazos", () => {
   it("após o prazo de acesso, busca, download e QR bloqueiam; destaques continuam visíveis", async () => {
-    await q("update media set image_use=true where id=$1", [ids.anaGroup]);
+    await q("update media set image_use=1 where id=$1", [ids.anaGroup]);
     await call(mediaActions.POST, "/x", { cookie, params: { id: evA.id }, body: { action: "highlight", mediaIds: [ids.anaGroup] } });
     const created = await (await call(shareRoute.POST, "/x", { cookie, params: { id: ids.anaGroup } })).json();
     const token = created.url.split("/m/")[1];
@@ -301,7 +304,7 @@ describe("prazos", () => {
   });
 
   it("após o prazo da busca facial, a biometria do evento é apagada e a busca é recusada", async () => {
-    await q("update events set face_until = now() - interval '1 minute' where id=$1", [evB.id]);
+    await q("update events set face_until = $2 where id=$1", [evB.id, new Date(Date.now() - 60_000).toISOString()]);
     const col = (await q1("select face_collection_id from events where id=$1", [evB.id])).face_collection_id;
     await housekeeping();
     const e = await q1("select face_search_enabled, face_collection_id, face_purged_at from events where id=$1", [evB.id]);
@@ -319,7 +322,7 @@ describe("prazos", () => {
 
 describe("validação da selfie", () => {
   it("orienta quando há mais de um rosto ou a foto está escura", async () => {
-    await q("update events set access_until = now() + interval '1 day' where id=$1", [evA.id]);
+    await q("update events set access_until = $2 where id=$1", [evA.id, new Date(Date.now() + 86400_000).toISOString()]);
     const gc = await guestCookie(evA);
     const send = async (buf: Buffer) => {
       const form = new FormData();

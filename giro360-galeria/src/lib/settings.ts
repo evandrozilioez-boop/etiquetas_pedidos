@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { q, q1 } from "./db";
+import { nowIso, q, q1 } from "./db";
 
 export type SiteSettings = {
   logoKey: string | null;
@@ -10,8 +10,15 @@ export type SiteSettings = {
 };
 
 export async function getSettings(): Promise<SiteSettings> {
-  const rows = await q<{ key: string; value: any }>("select key, value from settings");
-  const v = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const rows = await q<{ key: string; value: string }>("select key, value from settings");
+  const v: Record<string, any> = {};
+  for (const r of rows) {
+    try {
+      v[r.key] = JSON.parse(r.value);
+    } catch {
+      v[r.key] = r.value;
+    }
+  }
   const c = config();
   return {
     logoKey: v.logoKey ?? null,
@@ -24,14 +31,15 @@ export async function getSettings(): Promise<SiteSettings> {
 
 export async function setSetting(key: keyof SiteSettings, value: unknown) {
   await q(
-    `insert into settings(key, value, updated_at) values ($1, $2, now())
-     on conflict (key) do update set value = excluded.value, updated_at = now()`,
-    [key, JSON.stringify(value)],
+    `insert into settings(key, value, updated_at) values ($1, $2, $3)
+     on conflict (key) do update set value = excluded.value, updated_at = excluded.updated_at`,
+    [key, JSON.stringify(value), nowIso()],
   );
 }
 
 export async function getSetting<T>(key: string): Promise<T | null> {
-  return (await q1<{ value: T }>("select value from settings where key=$1", [key]))?.value ?? null;
+  const r = await q1<{ value: string }>("select value from settings where key=$1", [key]);
+  return r ? (JSON.parse(r.value) as T) : null;
 }
 
 /** Link de WhatsApp com a mensagem pronta pedindo a liberação do evento. */

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Confirm, toast } from "./ui";
 import { fmtBytes, fmtDuration } from "@/lib/format";
+import { downloadQrPng, svgDataUrl } from "./qr-png";
 
 type M = {
   id: string;
@@ -263,7 +264,7 @@ export function MediaManager({ eventId }: { eventId: string }) {
             ) : share.qr ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="qr" src={share.qr} alt="QR Code individual" />
+                <img className="qr" src={svgDataUrl(share.qr)} alt="QR Code individual" />
                 <div className="linkline">
                   <code>{share.url}</code>
                   <button className="btn sm" onClick={() => navigator.clipboard.writeText(share.url!).then(() => toast("Link copiado."), () => toast("Selecione o link para copiar."))}>
@@ -271,9 +272,9 @@ export function MediaManager({ eventId }: { eventId: string }) {
                   </button>
                 </div>
                 <div className="row" style={{ justifyContent: "center" }}>
-                  <a className="btn primary" href={share.qr} download="qr-individual.png">
+                  <button className="btn primary" onClick={() => downloadQrPng(share.qr!, "qr-individual.png", 720)}>
                     Baixar PNG
-                  </a>
+                  </button>
                   <a className="btn" href={share.url} target="_blank" rel="noopener">
                     Abrir
                   </a>

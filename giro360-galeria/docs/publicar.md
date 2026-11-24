@@ -1,86 +1,120 @@
-# Publicar o site
+# Publicar o site (somente GitHub + Cloudflare)
 
-Arquitetura recomendada para colocar no ar:
+Tudo roda na Cloudflare e é publicado automaticamente pelo GitHub Actions a cada atualização da branch `main`:
 
-- **Railway**: dois serviços a partir do mesmo repositório e do mesmo `Dockerfile` (site e worker) + PostgreSQL gerenciado.
-- **Cloudflare R2**: bucket privado para fotos e vídeos (sem cobrança por download).
-- **Domínio**: por exemplo `galeria.giro360.com.br`, apontado para o serviço do site no Railway.
+| Parte | Serviço Cloudflare |
+| --- | --- |
+| Site, painel e API | Workers (Next.js via OpenNext) |
+| Banco de dados | D1 |
+| Fotos e vídeos | R2 (bucket privado) |
+| Fila de processamento | Queues |
+| Processamento de vídeo e foto (FFmpeg, miniaturas, quadros) | Containers |
+| Manutenção (exclusões pendentes, prazo da biometria) | Cron Triggers |
 
-Qualquer hospedagem que rode contêineres Docker com Node e FFmpeg serve (Render, Fly.io, uma VPS com Docker Compose).
+A busca por selfie usa o Amazon Rekognition (AWS) e é opcional: o site funciona sem ela.
 
-## 1. Cloudflare R2
+## 1. Conta Cloudflare (uma vez)
 
-1. No painel da Cloudflare: **R2 › Create bucket** → nome `giro360-midias`, localização automática. Deixe **sem acesso público**.
-2. **R2 › Manage R2 API Tokens › Create API token** com permissão *Object Read & Write* só nesse bucket.
-   Anote *Access Key ID*, *Secret Access Key* e o endpoint `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`.
-3. CORS do bucket (para o navegador enviar direto): o comando `npm run storage:setup` aplica a regra automaticamente
-   com as origens de `S3_CORS_ORIGINS` (ou `APP_URL`). Para conferir à mão, em **Settings › CORS policy**:
+1. Crie a conta em <https://dash.cloudflare.com/sign-up>.
+2. Assine o plano **Workers Paid** (Workers & Pages › Plans; US$ 5/mês). Ele é necessário para filas e containers.
+3. Ative o **R2** (menu R2 › “Purchase R2”; não há cobrança até passar da franquia gratuita).
+4. Anote o **Account ID** (aparece na lateral da página inicial da conta ou em Workers & Pages).
 
-```json
-[{ "AllowedOrigins": ["https://galeria.giro360.com.br"], "AllowedMethods": ["GET", "PUT", "HEAD"], "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3600 }]
-```
+### Token para o GitHub publicar
 
-Variáveis:
+My Profile › API Tokens › **Create Token** › modelo **“Edit Cloudflare Workers”** › em *Permissions*, adicione também:
 
-```
-S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-S3_PUBLIC_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-S3_REGION=auto
-S3_FORCE_PATH_STYLE=false
-S3_BUCKET=giro360-midias
-S3_ACCESS_KEY_ID=...
-S3_SECRET_ACCESS_KEY=...
-```
+- Account › **D1** › Edit
+- Account › **Queues** › Edit
+- Account › **Workers R2 Storage** › Edit
+- Account › **Cloudflare Containers** (ou “Containers”) › Edit
 
-## 2. Railway
+Em *Account Resources*, escolha a conta da Giro. Crie e copie o token (ele aparece uma vez só).
+Se a publicação acusar permissão faltando, edite o token e acrescente a permissão citada na mensagem.
 
-1. Crie um projeto e adicione **PostgreSQL** (Railway › New › Database › PostgreSQL).
-2. Adicione um serviço a partir do repositório GitHub, com **Root Directory** `giro360-galeria`. Ele usa o `Dockerfile`.
-   - Comando de início: `npm run start:web` (aplica migrações e sobe o site).
-   - Health check: `/api/health`.
-   - Gere um domínio (ou conecte o seu, item 3).
-3. Adicione um **segundo serviço** do mesmo repositório e pasta, com comando de início `npm run worker` e sem domínio.
-4. Em ambos os serviços, configure as variáveis (Railway › Variables), com referência ao banco:
+### Chave de acesso ao R2 (para links assinados)
 
-```
-APP_ENV=production
-APP_URL=https://galeria.giro360.com.br
-SESSION_SECRET=<gere com: openssl rand -base64 48>
-TRUST_PROXY=true
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-FACE_PROVIDER=none            # troque para rekognition quando configurar a AWS
-WHATSAPP_NUMBER=55DDNUMERO
-REMOVAL_REQUEST_CONTACT=privacidade@giro360.com.br
-# + as variáveis S3_* do item 1
-```
+R2 › **Manage R2 API Tokens** › Create API token › permissão **Object Read & Write** › bucket **giro360-midias**
+(se o bucket ainda não existir, escolha “Apply to all buckets”). Copie o *Access Key ID* e o *Secret Access Key*.
 
-5. Primeiro acesso: no serviço do site, abra o **Shell** (ou `railway run`) e execute:
+## 2. Configurar o GitHub (uma vez)
 
-```bash
-npm run storage:setup
-```
+No repositório: **Settings › Secrets and variables › Actions**.
 
-```bash
-npm run admin:create -- voce@giro360.com.br "Seu Nome" "uma-senha-forte-com-12+-caracteres"
-```
+**Secrets** (aba *Secrets*):
 
-## 3. Domínio
+| Nome | Valor |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | token criado acima |
+| `CLOUDFLARE_ACCOUNT_ID` | Account ID |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | chave do R2 |
+| `SESSION_SECRET` | texto aleatório com 48+ caracteres (ex.: gere em <https://www.random.org/strings/> ou use um gerenciador de senhas) |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | primeiro usuário do painel (senha com 12+ caracteres) |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | opcional, só para a busca por selfie (docs/aws-rekognition.md) |
 
-No Railway, **Settings › Networking › Custom Domain** → informe `galeria.giro360.com.br` e crie no seu DNS o registro
-CNAME indicado. Atualize `APP_URL` e `S3_CORS_ORIGINS` com o endereço final e rode `npm run storage:setup` de novo.
-O QR Code do evento usa `APP_URL`: defina o domínio definitivo antes de imprimir QRs.
+**Variables** (aba *Variables*):
 
-Para colocar o portfólio no site atual da Giro, use um link para `https://galeria.giro360.com.br/portfolio`.
+| Nome | Exemplo |
+| --- | --- |
+| `APP_URL` | `https://giro360-galeria.SEU-SUBDOMINIO.workers.dev` (depois, o domínio próprio) |
+| `WHATSAPP_NUMBER` | `5548999990000` (pedidos de liberação) |
+| `REMOVAL_REQUEST_CONTACT` | `privacidade@giro360.com.br` |
+| `FACE_PROVIDER` | `none` (sem selfie) ou `rekognition` |
 
-## 4. Conferência após publicar
+O subdomínio `*.workers.dev` aparece em Workers & Pages › (lado direito) “Your subdomain”.
 
-- `https://SEU-DOMINIO/api/health` responde `{"ok":true}`.
-- Logs do worker mostram `[worker] iniciado ... reconhecimento: none` (ou `rekognition`).
+## 3. Primeira publicação
+
+1. Leve o código para a branch `main` (ou abra **Actions › Giro 360 - publicar › Run workflow**).
+2. Na primeira vez, rode manualmente com **“Criar/atualizar o usuário do painel”** marcado.
+3. O workflow: roda os testes → cria (se não existirem) o banco D1, o bucket R2 com CORS e as filas → aplica as
+   migrações → publica site, worker e container → envia os segredos → confere `APP_URL/api/health`.
+4. Acesse `APP_URL/admin` com `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+
+A primeira publicação demora mais (a imagem do container é construída e enviada). A primeira mídia processada
+também pode levar alguns segundos a mais enquanto o container liga.
+
+## 4. Domínio próprio (ex.: galeria.giro360.com.br)
+
+1. Adicione o domínio à Cloudflare (Add a site) e troque os servidores DNS no registro (Registro.br etc.).
+2. Workers & Pages › **giro360-galeria** › Settings › Domains & Routes › **Add › Custom domain** › `galeria.giro360.com.br`.
+3. Atualize a variável `APP_URL` no GitHub e rode o workflow de novo (atualiza links, QR Codes e o CORS do R2).
+
+Defina o domínio definitivo **antes** de imprimir QR Codes: eles usam `APP_URL`.
+
+## 5. Conferência
+
+- `APP_URL/api/health` responde `{"ok":true}`.
+- Workers & Pages › giro360-galeria › Logs: mensagens `[fila]` e `[manutenção]`.
 - Crie um evento de teste, envie uma foto e um vídeo pelo iPhone (Painel › Enviar arquivos), gere o QR individual
   e baixe pelo celular. Depois exclua o evento de teste.
 
-## Escala
+## Desenvolvimento local
 
-- O worker processa `WORKER_CONCURRENCY` arquivos ao mesmo tempo (padrão 2). Vídeos longos em 4K consomem CPU na
-  geração da prévia: aumente a CPU do serviço do worker ou rode mais de uma instância (a fila evita trabalho duplicado).
-- O site é sem estado (sessões no banco); pode ter várias instâncias.
+Requer Node 22, FFmpeg e um S3 local (MinIO: `docker compose up -d` ou o binário do MinIO).
+
+```bash
+npm install
+```
+
+```bash
+cp .dev.vars.example .dev.vars
+```
+
+```bash
+npm run storage:setup && npm run db:migrate && npm run admin:create
+```
+
+Em dois terminais:
+
+```bash
+npm run processor
+```
+
+```bash
+npm run preview
+```
+
+Abra <http://localhost:8787/admin>. Para dados de demonstração: `npm run demo:seed` (código **DEMO26**).
+O `preview` roda o Worker de verdade (runtime da Cloudflare) com D1 e fila locais; o processamento vai para o
+servidor local em `PROCESSOR_URL` em vez do container.

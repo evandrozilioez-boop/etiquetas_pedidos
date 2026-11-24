@@ -8,6 +8,7 @@ import { Consents } from "./Consents";
 import { EventForm, type EventFormValues } from "./EventForm";
 import { Confirm, toast } from "./ui";
 import { fmtBytes } from "@/lib/format";
+import { downloadQrPng, svgDataUrl } from "./qr-png";
 
 type Tab = "overview" | "upload" | "media" | "consents" | "edit";
 type Ev = {
@@ -219,7 +220,7 @@ export function EventAdmin(props: { initialTab: Tab; event: Ev; form: EventFormV
           <div className="panel qrbox">
             <h2>QR Code do evento</h2>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="qr" src={props.qr} alt={`QR Code para ${e.publicUrl}`} />
+            <img className="qr" src={svgDataUrl(props.qr)} alt={`QR Code para ${e.publicUrl}`} />
             <div className="linkline">
               <code>{e.publicUrl}</code>
               <button
@@ -235,8 +236,11 @@ export function EventAdmin(props: { initialTab: Tab; event: Ev; form: EventFormV
               </button>
             </div>
             <div className="row" style={{ justifyContent: "center" }}>
-              <a className="btn primary" href={`/api/admin/events/${e.id}/qr`}>
+              <button className="btn primary" onClick={() => downloadQrPng(props.qr, `qr-${e.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}.png`)}>
                 Baixar PNG
+              </button>
+              <a className="btn" href={`/api/admin/events/${e.id}/qr`}>
+                SVG para gráfica
               </a>
               <a className="btn" href={e.publicUrl} target="_blank" rel="noopener">
                 Ver como convidado

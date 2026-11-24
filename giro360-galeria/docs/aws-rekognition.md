@@ -28,21 +28,15 @@ O site funciona sem IA (`FACE_PROVIDER=none`). Para ligar a busca por selfie:
 }
 ```
 
-3. Gere a chave de acesso e configure no site **e** no worker:
-
-```
-FACE_PROVIDER=rekognition
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-FACE_COLLECTION_PREFIX=giro360
-```
+3. Gere a chave de acesso e cadastre no GitHub (Settings › Secrets and variables › Actions):
+   secrets `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`; variável `FACE_PROVIDER` = `rekognition`
+   (e `AWS_REGION`, se não for `us-east-1`). Rode o workflow de publicação: o container passa a usar o Rekognition.
 
 ## 2. Como é usado
 
 - Uma coleção por evento (`giro360-<id-do-evento>`), criada na primeira indexação. Toda busca usa só a coleção do evento.
 - Fotos: `IndexFaces` com até 100 rostos por imagem (grupos incluídos). Vídeos: um `IndexFaces` por quadro extraído.
-- Selfie: `DetectFaces` (confere se há exatamente um rosto) + `SearchFacesByImage`. A imagem vai como bytes e não é guardada.
+- Selfie: o Worker repassa a imagem (em memória) ao container, que chama `DetectFaces` (confere se há exatamente um rosto) e `SearchFacesByImage`. A imagem vai como bytes e não é guardada.
 - Despublicar ou excluir mídia chama `DeleteFaces`; o prazo de 90 dias ou o botão “Excluir dados biométricos” chama
   `DeleteCollection`. Falhas ficam pendentes e são repetidas pelo worker (Configurações › Pendências técnicas).
 
@@ -58,6 +52,6 @@ FACE_COLLECTION_PREFIX=giro360
 
 ## 4. O que ainda não foi testado com credenciais reais
 
-A integração com o Rekognition está implementada (`src/lib/faces/rekognition.ts`), mas **não foi executada contra a
+A integração com o Rekognition está implementada (`src/processor/rekognition.ts`, executada no container), mas **não foi executada contra a
 AWS** neste ambiente. O fluxo completo foi verificado com o provedor simulado, que usa o mesmo código de indexação,
 agrupamento e busca. Antes de usar com convidados, faça o teste do item 3 com credenciais reais.

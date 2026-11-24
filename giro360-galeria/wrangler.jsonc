@@ -1,0 +1,43 @@
+// Configuração da Cloudflare (Workers + D1 + Queues + Containers + Cron).
+// database_id "local-giro360" é usado localmente; na publicação, o GitHub Actions troca pelo id real do D1.
+// Segredos (S3_*, SESSION_SECRET, AWS_*, PROCESSOR_SECRET) NÃO ficam aqui: `wrangler secret put` ou GitHub Actions.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "giro360-galeria",
+  "main": "worker.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+
+  "vars": {
+    "APP_ENV": "production",
+    "APP_URL": "https://galeria.giro360.com.br",
+    "S3_REGION": "auto",
+    "S3_BUCKET": "giro360-midias",
+    "FACE_PROVIDER": "none",
+    "AWS_REGION": "us-east-1",
+    "TRUST_PROXY": "true",
+    "WHATSAPP_NUMBER": "",
+    "REMOVAL_REQUEST_CONTACT": "privacidade@giro360.com.br"
+  },
+
+  "d1_databases": [
+    { "binding": "DB", "database_name": "giro360", "database_id": "local-giro360", "migrations_dir": "migrations-d1" }
+  ],
+
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "giro360-jobs" }],
+    "consumers": [
+      { "queue": "giro360-jobs", "max_batch_size": 1, "max_concurrency": 5, "max_retries": 5, "dead_letter_queue": "giro360-jobs-falhas" }
+    ]
+  },
+
+  "containers": [
+    { "class_name": "MediaProcessor", "image": "./Dockerfile.processor", "max_instances": 5, "instance_type": "standard-1" }
+  ],
+  "durable_objects": { "bindings": [{ "name": "PROCESSOR", "class_name": "MediaProcessor" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MediaProcessor"] }],
+
+  "triggers": { "crons": ["*/15 * * * *"] }
+}

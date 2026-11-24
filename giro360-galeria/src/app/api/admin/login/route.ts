@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { q, q1 } from "@/lib/db";
+import { nowIso, q, q1 } from "@/lib/db";
 import { HttpError, clientKey, cookieHeader, json, readJson, route } from "@/lib/http";
 import { ADMIN_COOKIE, adminSessionToken, checkPassword } from "@/lib/auth";
 import { rateLimit, resetRateLimit } from "@/lib/rateLimit";
@@ -18,7 +18,7 @@ export const POST = route(async (req: Request) => {
     throw new HttpError(401, "E-mail ou senha incorretos.");
   }
   await resetRateLimit(key);
-  await q("update admin_users set last_login_at=now() where id=$1", [user.id]);
+  await q("update admin_users set last_login_at=$2 where id=$1", [user.id, nowIso()]);
   await audit(email, "admin.login");
   const { token, maxAge } = await adminSessionToken(user.id);
   return json({ ok: true }, { headers: { "Set-Cookie": cookieHeader(ADMIN_COOKIE, token, maxAge) } });

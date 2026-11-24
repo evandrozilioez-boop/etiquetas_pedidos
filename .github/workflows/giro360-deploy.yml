@@ -1,0 +1,133 @@
+# Giro 360 | Galeria de Eventos — testes e publicação na Cloudflare (Workers + D1 + R2 + Queues + Containers).
+# Configuração única no GitHub (Settings › Secrets and variables › Actions) — ver giro360-galeria/docs/publicar.md.
+name: Giro 360 - publicar
+
+on:
+  push:
+    branches: [main]
+    paths: ["giro360-galeria/**", ".github/workflows/giro360-deploy.yml"]
+  workflow_dispatch:
+    inputs:
+      criar_admin:
+        description: "Criar/atualizar o usuário do painel com ADMIN_EMAIL e ADMIN_PASSWORD"
+        type: boolean
+        default: false
+      pular_testes:
+        description: "Publicar sem rodar os testes (só em emergência)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: giro360-deploy
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: giro360-galeria
+
+jobs:
+  testes:
+    if: ${{ !inputs.pular_testes }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: giro360-galeria/package-lock.json
+      - name: FFmpeg e armazenamento S3 local (MinIO)
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=giroadmin -e MINIO_ROOT_PASSWORD=giroadmin-secret minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for i in $(seq 1 30); do curl -sf http://localhost:9000/minio/health/live && break; sleep 2; done
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  publicar:
+    needs: testes
+    if: ${{ always() && (needs.testes.result == 'success' || needs.testes.result == 'skipped') && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      APP_URL: ${{ vars.APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: giro360-galeria/package-lock.json
+      - run: npm ci
+
+      - name: Conferir configuração
+        run: |
+          faltando=""
+          for v in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID APP_URL; do [ -n "${!v}" ] || faltando="$faltando $v"; done
+          [ -n "${{ secrets.R2_ACCESS_KEY_ID }}" ] || faltando="$faltando R2_ACCESS_KEY_ID"
+          [ -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" ] || faltando="$faltando R2_SECRET_ACCESS_KEY"
+          [ -n "${{ secrets.SESSION_SECRET }}" ] || faltando="$faltando SESSION_SECRET"
+          if [ -n "$faltando" ]; then echo "::error::Configure no GitHub (Settings › Secrets and variables › Actions):$faltando"; exit 1; fi
+
+      - name: Garantir recursos na Cloudflare (D1, R2, filas)
+        run: |
+          npx wrangler d1 list --json > d1.json
+          if ! jq -e '.[] | select(.name=="giro360")' d1.json > /dev/null; then npx wrangler d1 create giro360; npx wrangler d1 list --json > d1.json; fi
+          DB_ID=$(jq -r '.[] | select(.name=="giro360") | .uuid' d1.json)
+          sed -i "s/\"database_id\": \"local-giro360\"/\"database_id\": \"$DB_ID\"/" wrangler.jsonc
+          npx wrangler r2 bucket list | grep -q "giro360-midias" || npx wrangler r2 bucket create giro360-midias
+          sed "s#__APP_URL__#${APP_URL%/}#" deploy/r2-cors.json > /tmp/cors.json
+          npx wrangler r2 bucket cors set giro360-midias --file /tmp/cors.json --force
+          for q in giro360-jobs giro360-jobs-falhas; do npx wrangler queues info "$q" > /dev/null 2>&1 || npx wrangler queues create "$q"; done
+
+      - name: Aplicar migrações do banco
+        run: npx wrangler d1 migrations apply giro360 --remote
+
+      - name: Publicar site, worker e container
+        run: |
+          npx opennextjs-cloudflare build
+          npx wrangler deploy \
+            --var "APP_URL:${APP_URL%/}" \
+            --var "FACE_PROVIDER:${{ vars.FACE_PROVIDER || 'none' }}" \
+            --var "AWS_REGION:${{ vars.AWS_REGION || 'us-east-1' }}" \
+            --var "WHATSAPP_NUMBER:${{ vars.WHATSAPP_NUMBER }}" \
+            --var "REMOVAL_REQUEST_CONTACT:${{ vars.REMOVAL_REQUEST_CONTACT || 'privacidade@giro360.com.br' }}"
+
+      - name: Enviar segredos ao Worker
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          PROC_SECRET=$(printf '%s' "processador:$SESSION_SECRET" | sha256sum | cut -c1-48)
+          jq -n \
+            --arg ep "$ENDPOINT" --arg ak "$R2_ACCESS_KEY_ID" --arg sk "$R2_SECRET_ACCESS_KEY" \
+            --arg ss "$SESSION_SECRET" --arg ps "$PROC_SECRET" \
+            --arg awsk "$AWS_ACCESS_KEY_ID" --arg awss "$AWS_SECRET_ACCESS_KEY" \
+            '{S3_ENDPOINT:$ep, S3_PUBLIC_ENDPOINT:$ep, S3_ACCESS_KEY_ID:$ak, S3_SECRET_ACCESS_KEY:$sk, SESSION_SECRET:$ss, PROCESSOR_SECRET:$ps}
+             + (if $awsk != "" then {AWS_ACCESS_KEY_ID:$awsk, AWS_SECRET_ACCESS_KEY:$awss} else {} end)' \
+            | npx wrangler secret bulk
+
+      - name: Criar usuário do painel
+        if: ${{ inputs.criar_admin }}
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          sed -i "s/\"database_id\": \"local-giro360\"/\"database_id\": \"$(jq -r '.[] | select(.name=="giro360") | .uuid' d1.json)\"/" wrangler.jsonc || true
+          npx tsx scripts/create-admin.ts "$ADMIN_EMAIL" "Equipe Giro 360" "$ADMIN_PASSWORD" --remote
+
+      - name: Conferir site no ar
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf "${APP_URL%/}/api/health" | grep -q '"ok":true'; then echo "Site no ar: ${APP_URL%/}"; exit 0; fi
+            sleep 6
+          done
+          echo "::warning::O site ainda não respondeu em ${APP_URL%/}/api/health. Confira o domínio e os logs do Worker."

@@ -7,3 +7,6 @@ next-env.d.ts
 /tmp
 /backups
 /test-results
+.dev.vars
+.wrangler
+.open-next

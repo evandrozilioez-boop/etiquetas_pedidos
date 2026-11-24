@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "./ui";
+import { uploadViaSignedUrl } from "./qr-png";
 
 type V = { whatsapp: string; removalContact: string; portfolioTitle: string; portfolioText: string };
 
@@ -22,11 +23,12 @@ export function SettingsForm({ initial, logoUrl }: { initial: V; logoUrl: string
     router.refresh();
   }
   async function uploadLogo(file: File) {
-    const f = new FormData();
-    f.set("file", file);
-    const r = await fetch("/api/admin/settings/logo", { method: "POST", body: f });
-    if (!r.ok) toast((await r.json().catch(() => null))?.error ?? "Não foi possível enviar a logo.");
-    else toast("Logo atualizada.");
+    try {
+      await uploadViaSignedUrl("/api/admin/settings/logo", file);
+      toast("Logo atualizada.");
+    } catch (e) {
+      toast((e as Error).message);
+    }
     router.refresh();
   }
 

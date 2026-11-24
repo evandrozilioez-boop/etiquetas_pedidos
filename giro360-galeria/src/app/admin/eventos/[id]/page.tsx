@@ -59,7 +59,7 @@ export default async function EventPage({ params, searchParams }: Props) {
           showInPortfolio: event.show_in_portfolio,
         }}
         stats={await eventStats(event.id)}
-        qr={await QRCode.toDataURL(url, { width: 480, margin: 2, errorCorrectionLevel: "M" })}
+        qr={await QRCode.toString(url, { type: "svg", margin: 2, errorCorrectionLevel: "M" })}
         limits={limitsForClient()}
         accessDays={c.ACCESS_DAYS}
         faceDays={c.FACE_DAYS}

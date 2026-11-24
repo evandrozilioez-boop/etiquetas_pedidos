@@ -12,7 +12,6 @@ const bool = z
 const schema = z.object({
   APP_ENV: z.enum(["development", "local", "test", "staging", "production"]).default("development"),
   APP_URL: z.string().url().default("http://localhost:3000"),
-  DATABASE_URL: z.string().min(1).default("postgresql://giro:giro@localhost:5432/giro360"),
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET precisa ter pelo menos 32 caracteres"),
 
   S3_ENDPOINT: z.string().url().optional(),
@@ -46,7 +45,6 @@ const schema = z.object({
   ADMIN_EMAIL: z.string().optional(),
   ADMIN_PASSWORD: z.string().optional(),
   COMPANY_NAME: z.string().default("Giro 360"),
-  WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
   TRUST_PROXY: bool,
 });
 

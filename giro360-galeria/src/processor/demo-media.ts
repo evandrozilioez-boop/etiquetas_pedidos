@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import sharp from "sharp";
-import { MOCK_PERSONAS } from "./faces/mock";
+import { MOCK_PERSONAS } from "@/lib/faces/personas";
 
 /**
  * Gera mídias fictícias para a demonstração e para os testes: "pessoas" com rostos representados por discos

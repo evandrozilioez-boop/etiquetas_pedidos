@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { uploadViaSignedUrl } from "./qr-png";
 
 export type EventFormValues = {
   id?: string;
@@ -48,10 +49,9 @@ export function EventForm({ initial, accessDays, faceDays, onSaved }: { initial?
       if (!r.ok) throw new Error(j.error ?? "Não foi possível salvar.");
       const id = j.event.id as string;
       if (cover) {
-        const f = new FormData();
-        f.set("file", cover);
-        const c = await fetch(`/api/admin/events/${id}/cover`, { method: "POST", body: f });
-        if (!c.ok) throw new Error((await c.json().catch(() => null))?.error ?? "Evento salvo, mas a capa não foi enviada. Tente de novo.");
+        await uploadViaSignedUrl(`/api/admin/events/${id}/cover`, cover).catch((e) => {
+          throw new Error(`Evento salvo, mas a capa não foi enviada: ${e.message}`);
+        });
       }
       if (onSaved) {
         onSaved();
@@ -93,7 +93,7 @@ export function EventForm({ initial, accessDays, faceDays, onSaved }: { initial?
         <div className="field">
           <label htmlFor="ev-cover">Capa do evento</label>
           <input id="ev-cover" type="file" accept="image/jpeg,image/png" onChange={(e) => setCover(e.target.files?.[0] ?? null)} />
-          <small>JPEG ou PNG, de preferência horizontal.</small>
+          <small>JPEG ou PNG, de preferência horizontal. Aparece em instantes, depois do processamento.</small>
         </div>
       </div>
       <div className="field">

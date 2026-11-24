@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { frameTimestamps, groupMatches } from "@/lib/faces/grouping";
 import { endOfDayPlus, extendedAccess } from "@/lib/events";
-import { sniffType } from "@/worker/media";
+import { sniffType } from "@/processor/media-tools";
 
 describe("groupMatches", () => {
   const refs = new Map([
