@@ -5,10 +5,10 @@ import {
   Alert, Box, Button, Card, CardActions, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Grid, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import { useState } from 'react';
-import type { PreviaCSV } from '../../engine/csv';
+import { MODELO_CSV, type PreviaCSV } from '../../engine/csv';
 import type { LinhaFrete, Logistica, TabelaFrete } from '../../engine/types';
 import { LOGISTICAS, NOME_BASE } from '../../engine/types';
-import { api } from '../api';
+import { api, confirmar, ESTATICO } from '../api';
 import { brl, dataBR, deBR, hojeISO, novoId, paraBR } from '../format';
 import { NumField, Secao, Selecao } from './campos';
 
@@ -76,7 +76,11 @@ export default function Tabelas({ tabelas, recarregar }: { tabelas: TabelaFrete[
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 2 }}>
         <Typography variant="body2" color="text.secondary">Tabelas oficiais verificáveis ou fornecidas por você. Só são aplicadas dentro da vigência e da modalidade cadastradas.</Typography>
         <Stack direction="row" spacing={1}>
-          <Button startIcon={<DownloadIcon />} href="/api/tabelas-frete/modelo.csv">Modelo CSV</Button>
+          {ESTATICO ? (
+            <Button startIcon={<DownloadIcon />} onClick={() => { abrir(nova()); setCsv(MODELO_CSV); }}>Ver modelo CSV</Button>
+          ) : (
+            <Button startIcon={<DownloadIcon />} href="/api/tabelas-frete/modelo.csv">Modelo CSV</Button>
+          )}
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => abrir(nova())}>Importar tabela</Button>
         </Stack>
       </Stack>
@@ -94,7 +98,7 @@ export default function Tabelas({ tabelas, recarregar }: { tabelas: TabelaFrete[
               <CardActions>
                 <Button onClick={() => setVer(t)}>Ver faixas</Button>
                 {!t.demo && <Button onClick={() => abrir({ ...t, pesoCubico: { ...t.pesoCubico, divisor: paraBR(t.pesoCubico.divisor) } })}>Editar / reimportar</Button>}
-                {!t.demo && <Button color="error" onClick={async () => { if (confirm(`Excluir a tabela ${t.nome}?`)) { await api.excluirTabela(t.id); recarregar(); } }}>Excluir</Button>}
+                {!t.demo && <Button color="error" onClick={async () => { if (confirmar(`Excluir a tabela ${t.nome}?`)) { await api.excluirTabela(t.id); recarregar(); } }}>Excluir</Button>}
               </CardActions>
             </Card>
           </Grid>

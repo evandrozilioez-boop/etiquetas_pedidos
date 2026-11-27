@@ -16,7 +16,7 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
 export interface Status { modo: 'demo' | 'producao'; motivo: string; fonteTarifas?: string; documentacao: string }
 export interface Categoria { id: string; nome: string; caminho?: string }
 
-export const api = {
+const apiServidor = {
   status: () => req<Status>('/api/status'),
   categorias: (q: string) => req<{ itens: Categoria[]; fonte?: string; aviso?: string }>(`/api/categorias?q=${encodeURIComponent(q)}`),
   perfis: () => req<PerfilCnpj[]>('/api/perfis'),
@@ -28,3 +28,9 @@ export const api = {
   previaCSV: (csv: string) => req<PreviaCSV>('/api/tabelas-frete/previa-csv', { method: 'POST', body: JSON.stringify({ csv }) }),
   simular: (e: EntradaSimulacao) => req<ResultadoSimulacao>('/api/simular', { method: 'POST', body: JSON.stringify(e) }),
 };
+
+import { apiEstatica } from './api-estatico';
+export const ESTATICO = import.meta.env.VITE_ESTATICO === '1';
+export const api: typeof apiServidor = ESTATICO ? apiEstatica : apiServidor;
+/** confirm() não funciona dentro de páginas incorporadas; na versão estática confirma direto. */
+export const confirmar = (msg: string) => (ESTATICO ? true : window.confirm(msg));

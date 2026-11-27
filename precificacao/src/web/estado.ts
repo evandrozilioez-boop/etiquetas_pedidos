@@ -64,3 +64,18 @@ export function gravarRascunho(f: FormSim) {
     /* armazenamento indisponível */
   }
 }
+
+/** Exemplo de conferência do README (usado ao abrir a versão de demonstração no navegador). */
+export function formExemplo(): FormSim {
+  const f = formInicial();
+  return {
+    ...f,
+    descricao: 'Exemplo para conferir com a calculadora',
+    categoria: { id: 'MLB1626', nome: 'Sofás' },
+    custos: { ...f.custos, compraUnitaria: '600', freteEntradaUnitario: '0', embalagemPorVenda: '0' },
+    margemAlvoPct: '25',
+    perfilId: 'demo-perfil',
+    caixas: [{ quantidade: 1, pesoKg: '3,5', comprimentoCm: '40', larguraCm: '30', alturaCm: '20' }],
+    frete: { modo: 'manual', manual: { valor: '50', origem: 'exemplo de conferência' } },
+  };
+}

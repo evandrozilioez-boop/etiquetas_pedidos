@@ -6,7 +6,7 @@ import {
 import { useState } from 'react';
 import type { CodigoTributo, Credito, Incidencia, Parametro, ParamLucroReal, ParamSimples, PerfilCnpj } from '../../engine/types';
 import { NOME_BASE, NOME_REGIME } from '../../engine/types';
-import { api } from '../api';
+import { api, confirmar } from '../api';
 import { dataBR, deBR, hojeISO, novoId, paraBR } from '../format';
 import { NOMES_ESTADO, NumField, ParametroField, Secao, Selecao } from './campos';
 
@@ -78,7 +78,7 @@ export default function Perfis({ perfis, recarregar }: { perfis: PerfilCnpj[]; r
               {!p.demo && (
                 <CardActions>
                   <Button onClick={() => { setErro(null); setEdit(converter(p, paraBR)); }}>Editar</Button>
-                  <Button color="error" onClick={async () => { if (confirm(`Excluir o perfil ${p.razaoSocial}?`)) { await api.excluirPerfil(p.id); recarregar(); } }}>Excluir</Button>
+                  <Button color="error" onClick={async () => { if (confirmar(`Excluir o perfil ${p.razaoSocial}?`)) { await api.excluirPerfil(p.id); recarregar(); } }}>Excluir</Button>
                 </CardActions>
               )}
             </Card>

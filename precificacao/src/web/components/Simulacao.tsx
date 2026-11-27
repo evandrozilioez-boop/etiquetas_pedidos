@@ -8,8 +8,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ResultadoSimulacao } from '../../engine/simulate';
 import type { AjusteTarifa, BasePreco, Logistica, PerfilCnpj, TabelaFrete, TipoAnuncio } from '../../engine/types';
 import { LOGISTICAS, NOME_BASE, NOME_TIPO_ANUNCIO } from '../../engine/types';
-import { api, type Categoria } from '../api';
-import { formInicial, gravarRascunho, lerRascunho, paraEntrada, type FormSim } from '../estado';
+import { api, ESTATICO, type Categoria } from '../api';
+import { formExemplo, formInicial, gravarRascunho, lerRascunho, paraEntrada, type FormSim } from '../estado';
 import { dataBR } from '../format';
 import { NumField, Secao, Selecao } from './campos';
 import Resultados from './Resultados';
@@ -17,7 +17,7 @@ import Resultados from './Resultados';
 const BASES: [BasePreco, string][] = Object.entries(NOME_BASE) as [BasePreco, string][];
 
 export default function Simulacao({ perfis, tabelas, modoDemo }: { perfis: PerfilCnpj[]; tabelas: TabelaFrete[]; modoDemo: boolean }) {
-  const [f, setF] = useState<FormSim>(() => lerRascunho() ?? formInicial());
+  const [f, setF] = useState<FormSim>(() => lerRascunho() ?? (ESTATICO ? formExemplo() : formInicial()));
   const [res, setRes] = useState<ResultadoSimulacao | null>(null);
   const [assinatura, setAssinatura] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
