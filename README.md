@@ -57,6 +57,12 @@ precisa produzir linhas no formato `LinhaPedido`
 (`backend/src/services/importService.ts`) e chamar `importarLinhas(...)`
 — sem alterar o schema do banco ou a logica de deduplicacao/hash.
 
+## Precificação Mercado Livre
+
+A pasta `precificacao/` contém um aplicativo independente de precificação para
+vendedores do Mercado Livre Brasil (menor preço de anúncio para atingir a
+margem desejada). Instruções em [`precificacao/README.md`](precificacao/README.md).
+
 ## Rodando localmente
 
 ### Com Docker Compose

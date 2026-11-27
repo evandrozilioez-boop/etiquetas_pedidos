@@ -1,0 +1,7 @@
+preco_min;preco_max;peso_min_kg;peso_max_kg;regiao;custo
+# preco_min inclusivo; preco_max exclusivo (vazio = sem limite); peso_min exclusivo (0 inclui 0); peso_max inclusivo; regiao vazia = todas; custo = frete que cabe ao vendedor
+0,00;79,00;0;0,3;;0,00
+0,00;79,00;0,3;1;;0,00
+79,00;;0;0,3;;20,00
+79,00;;0,3;1;;25,00
+79,00;;1;2;;30,00
