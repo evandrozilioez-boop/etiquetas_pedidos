@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { PerfilCnpj, TabelaFrete } from '../engine';
+import type { PerfilCnpj, Produto, TabelaFrete } from '../engine';
 
 /** Persistência leve: um arquivo JSON com as configurações reutilizáveis. */
 export interface Dados {
   perfis: PerfilCnpj[];
   tabelas: TabelaFrete[];
+  produtos: Produto[];
 }
 
 export interface Store {
@@ -19,9 +20,9 @@ export function storeArquivo(arquivo: string): Store {
       try {
         const txt = fs.readFileSync(arquivo, 'utf8');
         const d = JSON.parse(txt) as Partial<Dados>;
-        return { perfis: d.perfis ?? [], tabelas: d.tabelas ?? [] };
+        return { perfis: d.perfis ?? [], tabelas: d.tabelas ?? [], produtos: d.produtos ?? [] };
       } catch (e) {
-        if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { perfis: [], tabelas: [] };
+        if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { perfis: [], tabelas: [], produtos: [] };
         throw e;
       }
     },
@@ -34,8 +35,8 @@ export function storeArquivo(arquivo: string): Store {
   };
 }
 
-export function storeMemoria(inicial: Dados = { perfis: [], tabelas: [] }): Store {
-  let d = structuredClone(inicial);
+export function storeMemoria(inicial: Partial<Dados> = {}): Store {
+  let d: Dados = structuredClone({ perfis: [], tabelas: [], produtos: [], ...inicial });
   return {
     ler: () => structuredClone(d),
     gravar: (n) => {

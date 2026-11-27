@@ -1,5 +1,5 @@
-import type { AjusteTarifa, EntradaSimulacao } from '../engine/types';
-import { deBR, hojeISO } from './format';
+import type { AjusteTarifa, EntradaSimulacao, Produto } from '../engine/types';
+import { deBR, hojeISO, novoId } from './format';
 
 /** O formulário usa o mesmo formato da simulação, mas com números digitados em pt-BR ("1.234,56"). */
 export type FormSim = EntradaSimulacao;
@@ -77,5 +77,28 @@ export function formExemplo(): FormSim {
     perfilId: 'demo-perfil',
     caixas: [{ quantidade: 1, pesoKg: '3,5', comprimentoCm: '40', larguraCm: '30', alturaCm: '20' }],
     frete: { modo: 'manual', manual: { valor: '50', origem: 'exemplo de conferência' } },
+  };
+}
+
+/** Monta o registro do produto a partir da simulação; registra o custo no histórico quando ele muda. */
+export function montarProduto(
+  base: Produto | null,
+  dados: { nome: string; sku?: string },
+  f: FormSim,
+  resultado: Produto['ultimoResultado'] | undefined,
+): Produto {
+  const agora = new Date().toISOString();
+  const custo = deBR(f.custos.compraUnitaria);
+  const hist = [...(base?.historicoCusto ?? [])];
+  if (custo && !custo.startsWith('inválido') && hist[hist.length - 1]?.custoCompra !== custo) hist.push({ data: hojeISO(), custoCompra: custo });
+  return {
+    id: base?.id ?? novoId(),
+    nome: dados.nome.trim(),
+    sku: dados.sku?.trim() || undefined,
+    simulacao: { ...f, descricao: f.descricao || dados.nome.trim() },
+    historicoCusto: hist,
+    ultimoResultado: resultado ?? base?.ultimoResultado,
+    criadoEm: base?.criadoEm ?? agora,
+    atualizadoEm: agora,
   };
 }

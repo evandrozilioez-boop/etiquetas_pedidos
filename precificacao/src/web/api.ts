@@ -1,4 +1,4 @@
-import type { EntradaSimulacao, PerfilCnpj, TabelaFrete } from '../engine/types';
+import type { EntradaSimulacao, PerfilCnpj, Produto, TabelaFrete } from '../engine/types';
 import type { ResultadoSimulacao } from '../engine/simulate';
 import type { PreviaCSV } from '../engine/csv';
 
@@ -26,6 +26,9 @@ const apiServidor = {
   salvarTabela: (t: TabelaFrete) => req<TabelaFrete>(`/api/tabelas-frete/${encodeURIComponent(t.id)}`, { method: 'PUT', body: JSON.stringify(t) }),
   excluirTabela: (id: string) => req<void>(`/api/tabelas-frete/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   previaCSV: (csv: string) => req<PreviaCSV>('/api/tabelas-frete/previa-csv', { method: 'POST', body: JSON.stringify({ csv }) }),
+  produtos: () => req<Produto[]>('/api/produtos'),
+  salvarProduto: (p: Produto) => req<Produto>(`/api/produtos/${encodeURIComponent(p.id)}`, { method: 'PUT', body: JSON.stringify(p) }),
+  excluirProduto: (id: string) => req<void>(`/api/produtos/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   simular: (e: EntradaSimulacao) => req<ResultadoSimulacao>('/api/simular', { method: 'POST', body: JSON.stringify(e) }),
 };
 

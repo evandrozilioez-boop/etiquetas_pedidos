@@ -1,22 +1,29 @@
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import CalculateIcon from '@mui/icons-material/Calculate';
+import SaveIcon from '@mui/icons-material/SaveOutlined';
 import {
-  Alert, Autocomplete, Box, Button, Chip, CircularProgress, Collapse, FormControlLabel, Grid, IconButton, MenuItem, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  Alert, Autocomplete, Box, Button, Chip, CircularProgress, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Grid, IconButton, MenuItem, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ResultadoSimulacao } from '../../engine/simulate';
-import type { AjusteTarifa, BasePreco, Logistica, PerfilCnpj, TabelaFrete, TipoAnuncio } from '../../engine/types';
+import type { AjusteTarifa, BasePreco, Logistica, PerfilCnpj, Produto, TabelaFrete, TipoAnuncio } from '../../engine/types';
 import { LOGISTICAS, NOME_BASE, NOME_TIPO_ANUNCIO } from '../../engine/types';
 import { api, ESTATICO, type Categoria } from '../api';
-import { formExemplo, formInicial, gravarRascunho, lerRascunho, paraEntrada, type FormSim } from '../estado';
-import { dataBR } from '../format';
+import { formExemplo, formInicial, gravarRascunho, lerRascunho, montarProduto, paraEntrada, type FormSim } from '../estado';
+import { dataBR, deBR, hojeISO } from '../format';
 import { NumField, Secao, Selecao } from './campos';
 import Resultados from './Resultados';
 
 const BASES: [BasePreco, string][] = Object.entries(NOME_BASE) as [BasePreco, string][];
 
-export default function Simulacao({ perfis, tabelas, modoDemo }: { perfis: PerfilCnpj[]; tabelas: TabelaFrete[]; modoDemo: boolean }) {
+export default function Simulacao({ perfis, tabelas, modoDemo, produtoCarregado, onProdutoSalvo }: {
+  perfis: PerfilCnpj[];
+  tabelas: TabelaFrete[];
+  modoDemo: boolean;
+  produtoCarregado: { p: Produto; n: number } | null;
+  onProdutoSalvo: () => void;
+}) {
   const [f, setF] = useState<FormSim>(() => lerRascunho() ?? (ESTATICO ? formExemplo() : formInicial()));
   const [res, setRes] = useState<ResultadoSimulacao | null>(null);
   const [assinatura, setAssinatura] = useState<string | null>(null);
@@ -24,6 +31,45 @@ export default function Simulacao({ perfis, tabelas, modoDemo }: { perfis: Perfi
   const [erro, setErro] = useState<string | null>(null);
   const reqId = useRef(0);
   const painel = useRef<HTMLDivElement>(null);
+  const [produtoAtual, setProdutoAtual] = useState<Produto | null>(null);
+  const [salvar, setSalvar] = useState<{ nome: string; sku: string; novo: boolean } | null>(null);
+  const [msgSalvo, setMsgSalvo] = useState<string | null>(null);
+
+  // abre um produto salvo na simulação
+  useEffect(() => {
+    if (!produtoCarregado) return;
+    const p = produtoCarregado.p;
+    setF({ ...formInicial(), ...p.simulacao, dataReferencia: hojeISO() });
+    setProdutoAtual(p);
+    setRes(null);
+    setMsgSalvo(null);
+    window.scrollTo({ top: 0 });
+  }, [produtoCarregado]);
+
+  async function gravarProduto() {
+    if (!salvar) return;
+    if (!salvar.nome.trim()) return setErro('Informe o nome do produto');
+    const resultadoValido = res && !desatualizado && !carregando;
+    const ult: Produto['ultimoResultado'] | undefined = resultadoValido
+      ? {
+          calculadoEm: res.geradoEm,
+          margemAlvoPct: deBR(f.margemAlvoPct),
+          custoCompra: deBR(f.custos.compraUnitaria),
+          demo: res.modoDemo,
+          precos: res.cenarios.map((c) => ({ tipoAnuncio: c.tipoAnuncio, regime: c.regime, status: c.status, preco: c.avaliacao?.preco, resultado: c.avaliacao?.resultado, margemPct: c.avaliacao?.margemPct })),
+        }
+      : undefined;
+    try {
+      const p = await api.salvarProduto(montarProduto(salvar.novo ? null : produtoAtual, { nome: salvar.nome, sku: salvar.sku }, f, ult));
+      setProdutoAtual(p);
+      setSalvar(null);
+      setErro(null);
+      setMsgSalvo(`Produto “${p.nome}” salvo${ult ? ' com o preço calculado' : ''}.`);
+      onProdutoSalvo();
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  }
 
   const assinaturaAtual = useMemo(() => JSON.stringify(f), [f]);
   useEffect(() => gravarRascunho(f), [f]);
@@ -60,7 +106,12 @@ export default function Simulacao({ perfis, tabelas, modoDemo }: { perfis: Perfi
   return (
     <Grid container spacing={2}>
       <Grid item xs={12} lg={7}>
-        <Secao titulo="Produto">
+        {msgSalvo && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setMsgSalvo(null)}>{msgSalvo}</Alert>}
+        <Secao
+          titulo="Produto"
+          subtitulo={produtoAtual ? <>Produto salvo aberto: <b>{produtoAtual.nome}</b>{produtoAtual.sku ? ` (${produtoAtual.sku})` : ''}</> : 'Salve o item para reaproveitar custos, caixas e categoria depois.'}
+          acao={<Button size="small" startIcon={<SaveIcon />} onClick={() => setSalvar({ nome: produtoAtual?.nome ?? f.descricao ?? '', sku: produtoAtual?.sku ?? '', novo: !produtoAtual })}>Salvar produto</Button>}
+        >
           <Grid container spacing={1.5}>
             <Grid item xs={12} md={6}>
               <TextField label="Descrição (opcional)" value={f.descricao ?? ''} onChange={(e) => set({ descricao: e.target.value })} />
@@ -266,7 +317,8 @@ export default function Simulacao({ perfis, tabelas, modoDemo }: { perfis: Perfi
           <Button variant="contained" size="large" startIcon={carregando ? <CircularProgress size={18} color="inherit" /> : <CalculateIcon />} onClick={calcular} disabled={carregando} sx={{ flex: { xs: 1, sm: 'none' } }}>
             Calcular preço para minha margem
           </Button>
-          <Button color="inherit" onClick={() => { setF(formInicial()); setRes(null); }}>Limpar</Button>
+          <Button variant="outlined" startIcon={<SaveIcon />} onClick={() => setSalvar({ nome: produtoAtual?.nome ?? f.descricao ?? '', sku: produtoAtual?.sku ?? '', novo: !produtoAtual })}>Salvar produto</Button>
+          <Button color="inherit" onClick={() => { setF(formInicial()); setRes(null); setProdutoAtual(null); }}>Limpar</Button>
         </Box>
       </Grid>
 
@@ -279,6 +331,26 @@ export default function Simulacao({ perfis, tabelas, modoDemo }: { perfis: Perfi
           {res && !desatualizado && !carregando && <Resultados res={res} />}
         </Box>
       </Grid>
+      <Dialog open={!!salvar} onClose={() => setSalvar(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Salvar produto</DialogTitle>
+        <DialogContent dividers>
+          {salvar && (
+            <Stack spacing={1.5}>
+              <TextField autoFocus label="Nome do produto" value={salvar.nome} onChange={(e) => setSalvar({ ...salvar, nome: e.target.value })} />
+              <TextField label="SKU / código (opcional)" value={salvar.sku} onChange={(e) => setSalvar({ ...salvar, sku: e.target.value })} />
+              <Typography variant="body2" color="text.secondary">
+                Ficam salvos custos, caixas, categoria, frete, despesas e margem desta simulação
+                {res && !desatualizado ? ', junto com o preço calculado' : '. Calcule antes de salvar para guardar também o preço sugerido'}.
+              </Typography>
+              {produtoAtual && (
+                <FormControlLabel control={<Switch checked={salvar.novo} onChange={(e) => setSalvar({ ...salvar, novo: e.target.checked })} />} label={<Typography variant="body2">Salvar como novo produto (não altera “{produtoAtual.nome}”)</Typography>} />
+              )}
+              {erro && <Alert severity="error">{erro}</Alert>}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions><Button onClick={() => setSalvar(null)}>Cancelar</Button><Button variant="contained" onClick={gravarProduto}>Salvar</Button></DialogActions>
+      </Dialog>
     </Grid>
   );
 }

@@ -78,6 +78,16 @@ Premium (tarifa fictícia de 16,5%): tarifa 16,5% × 1.269,52 = 209,47; DAS 92,6
 
 Cada componente é arredondado ao centavo (meio para cima). Por isso o preço exato pode ficar um centavo abaixo da estimativa pela fórmula.
 
+## Meus produtos
+
+A aba **Meus produtos** guarda os itens que você revende:
+
+- **Cadastrar produto** grava nome, SKU, categoria, unidades por venda, custo de compra, frete de entrada e embalagem.
+- Na simulação, **Salvar produto** grava tudo o que está na tela (custos, caixas, frete, despesas, margem). Se você calculou antes, grava também o preço sugerido de cada cenário.
+- **Simular preço** reabre o item na simulação com a data de hoje. **Atualizar custo** troca o custo de compra e guarda o anterior no **Histórico**. Quando o custo muda depois do último cálculo, o card avisa para simular de novo.
+
+Os produtos ficam em `data/config.json`, junto com perfis e tabelas.
+
 ## Como o cálculo funciona
 
 1. **Receita do vendedor** = preço anunciado − desconto custeado pela loja. O comprador paga o preço menos o desconto total. A parte custeada pelo Mercado Livre só entra quando você a informa. O cupom é descontado uma única vez.
@@ -140,7 +150,7 @@ Configurações e tokens ficam em `data/`, que está no `.gitignore`. Faça back
 
 ## Testes de aceitação cobertos
 
-`npm test` executa 38 testes, entre eles:
+`npm test` executa 39 testes, entre eles:
 
 - R$ 600 com 40% → R$ 1.000,00 e resultado R$ 400,00; campo vazio vira pendência, não zero.
 - Tarifa de 15% e margem de 25% → R$ 1.000,00, tarifa R$ 150,00, resultado R$ 250,00.

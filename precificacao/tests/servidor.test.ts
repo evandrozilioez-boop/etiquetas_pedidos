@@ -145,3 +145,23 @@ describe('modo demonstração e configurações', () => {
     expect(r.status).toBe(400);
   });
 });
+
+describe('produtos salvos', () => {
+  it('grava, lista, atualiza o custo e exclui um item', async () => {
+    const store = storeMemoria();
+    const app = criarApp({ modoDemo: true, motivoModo: 't', store });
+    const agora = '2026-11-27T12:00:00.000Z';
+    const prod = { nome: 'Sofá 3 lugares', sku: 'SOF-01', simulacao: entradaBase(), historicoCusto: [{ data: '2026-11-27', custoCompra: '600' }], criadoEm: agora, atualizadoEm: agora };
+    expect((await request(app).put('/api/produtos/p1').send(prod)).status).toBe(200);
+    const novoCusto = { ...prod, simulacao: entradaBase({ custos: { ...entradaBase().custos, compraUnitaria: '650' } }), historicoCusto: [...prod.historicoCusto, { data: '2026-12-01', custoCompra: '650' }] };
+    await request(app).put('/api/produtos/p1').send(novoCusto);
+    const lista = await request(app).get('/api/produtos');
+    expect(lista.body).toHaveLength(1);
+    expect(lista.body[0].simulacao.custos.compraUnitaria).toBe('650');
+    expect(lista.body[0].historicoCusto).toHaveLength(2);
+    expect(store.ler().produtos[0].nome).toBe('Sofá 3 lugares');
+    expect((await request(app).put('/api/produtos/p2').send({ ...prod, nome: ' ' })).status).toBe(400);
+    await request(app).delete('/api/produtos/p1');
+    expect((await request(app).get('/api/produtos')).body).toEqual([]);
+  });
+});

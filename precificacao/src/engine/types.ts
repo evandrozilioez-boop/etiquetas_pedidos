@@ -347,3 +347,24 @@ export interface ResultadoCenario {
   };
   diagnostico?: string[];
 }
+
+// ---------------------------------------------------------------- Produtos salvos
+
+/** Item salvo pelo usuário: os dados da simulação (custos, caixas, categoria) e o histórico de custo. */
+export interface Produto {
+  id: string;
+  nome: string;
+  sku?: string;
+  /** Simulação como foi digitada na tela (números em pt-BR). */
+  simulacao: EntradaSimulacao;
+  historicoCusto: { data: string; custoCompra: string }[];
+  ultimoResultado?: {
+    calculadoEm: string;
+    margemAlvoPct: string;
+    custoCompra: string;
+    precos: { tipoAnuncio: TipoAnuncio; regime: Regime; preco?: string; resultado?: string; margemPct?: string; status: StatusPreco }[];
+    demo: boolean;
+  };
+  criadoEm: string;
+  atualizadoEm: string;
+}

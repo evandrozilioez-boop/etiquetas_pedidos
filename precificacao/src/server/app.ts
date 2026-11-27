@@ -1,12 +1,12 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { EntradaSimulacao, PerfilCnpj, TabelaFrete } from '../engine';
+import type { EntradaSimulacao, PerfilCnpj, Produto, TabelaFrete } from '../engine';
 import { MODELO_CSV, validarCSVFrete } from '../engine/csv';
 import { simular, type ProvedorTarifa } from '../engine/simulate';
 import { categoriasDemo, perfilDemo, provedorDemo, tabelaDemo } from './demo';
 import type { ClienteML } from './ml/client';
-import { entradaSchema, perfilSchema, tabelaSchema } from './schemas';
+import { entradaSchema, perfilSchema, produtoSchema, tabelaSchema } from './schemas';
 import type { Store } from './store';
 
 export interface OpcoesApp {
@@ -103,6 +103,25 @@ export function criarApp(o: OpcoesApp) {
   app.delete('/api/tabelas-frete/:id', (req, res) => {
     const d = o.store.ler();
     d.tabelas = d.tabelas.filter((x) => x.id !== req.params.id);
+    o.store.gravar(d);
+    res.status(204).end();
+  });
+
+  // ---------------------------------------------------------------- produtos salvos
+  app.get('/api/produtos', (_req, res) => {
+    res.json([...o.store.ler().produtos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
+  });
+  app.put('/api/produtos/:id', (req, res) => {
+    const p = produtoSchema.safeParse({ ...req.body, id: req.params.id });
+    if (!p.success) throw new ErroHttp(400, 'Produto inválido', p.error.flatten());
+    const d = o.store.ler();
+    d.produtos = [...d.produtos.filter((x) => x.id !== p.data.id), p.data as unknown as Produto];
+    o.store.gravar(d);
+    res.json(p.data);
+  });
+  app.delete('/api/produtos/:id', (req, res) => {
+    const d = o.store.ler();
+    d.produtos = d.produtos.filter((x) => x.id !== req.params.id);
     o.store.gravar(d);
     res.status(204).end();
   });

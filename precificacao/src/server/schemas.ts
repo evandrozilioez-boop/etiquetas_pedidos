@@ -106,3 +106,14 @@ export const entradaSchema = z
     tributacao: z.object({ modo: z.enum(['regime_empresa', 'comparar']) }),
   })
   .passthrough();
+
+export const produtoSchema = z.object({
+  id: z.string().min(1),
+  nome: z.string().trim().min(1, 'nome do produto obrigatório'),
+  sku: z.string().optional(),
+  simulacao: entradaSchema,
+  historicoCusto: z.array(z.object({ data: z.string(), custoCompra: z.string() })),
+  ultimoResultado: z.any().optional(),
+  criadoEm: z.string(),
+  atualizadoEm: z.string(),
+});

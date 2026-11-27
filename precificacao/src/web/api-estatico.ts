@@ -4,18 +4,18 @@
  */
 import { validarCSVFrete } from '../engine/csv';
 import { simular } from '../engine/simulate';
-import type { EntradaSimulacao, PerfilCnpj, TabelaFrete } from '../engine/types';
+import type { EntradaSimulacao, PerfilCnpj, Produto, TabelaFrete } from '../engine/types';
 import { categoriasDemo, perfilDemo, provedorDemo, tabelaDemo } from '../server/demo';
 import type { Categoria, Status } from './api';
 
 const CHAVE = 'precificacao-ml:config:v1';
-type Dados = { perfis: PerfilCnpj[]; tabelas: TabelaFrete[] };
+type Dados = { perfis: PerfilCnpj[]; tabelas: TabelaFrete[]; produtos: Produto[] };
 function ler(): Dados {
   try {
     const s = localStorage.getItem(CHAVE);
-    if (s) return JSON.parse(s);
+    if (s) return { perfis: [], tabelas: [], produtos: [], ...JSON.parse(s) };
   } catch { /* indisponível */ }
-  return { perfis: [], tabelas: [] };
+  return { perfis: [], tabelas: [], produtos: [] };
 }
 function gravar(d: Dados) {
   try { localStorage.setItem(CHAVE, JSON.stringify(d)); } catch { /* indisponível */ }
@@ -57,6 +57,19 @@ export const apiEstatica = {
   excluirTabela: async (id: string) => {
     const d = ler();
     d.tabelas = d.tabelas.filter((x) => x.id !== id);
+    gravar(d);
+  },
+  produtos: async () => [...ler().produtos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+  salvarProduto: async (p: Produto) => {
+    if (!p.nome.trim()) throw new Error('Informe o nome do produto');
+    const d = ler();
+    d.produtos = [...d.produtos.filter((x) => x.id !== p.id), p];
+    gravar(d);
+    return p;
+  },
+  excluirProduto: async (id: string) => {
+    const d = ler();
+    d.produtos = d.produtos.filter((x) => x.id !== id);
     gravar(d);
   },
   previaCSV: async (csv: string) => validarCSVFrete(csv),

@@ -1,8 +1,9 @@
 import { Alert, AlertTitle, AppBar, Box, Container, Link, Tab, Tabs, Toolbar, Typography } from '@mui/material';
 import { useCallback, useEffect, useState } from 'react';
-import type { PerfilCnpj, TabelaFrete } from '../engine/types';
+import type { PerfilCnpj, Produto, TabelaFrete } from '../engine/types';
 import { api, type Status } from './api';
 import Perfis from './components/Perfis';
+import Produtos from './components/Produtos';
 import Simulacao from './components/Simulacao';
 import Tabelas from './components/Tabelas';
 
@@ -11,11 +12,14 @@ export default function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [perfis, setPerfis] = useState<PerfilCnpj[]>([]);
   const [tabelas, setTabelas] = useState<TabelaFrete[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [carregar, setCarregar] = useState<{ p: Produto; n: number } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   const recarregar = useCallback(async () => {
     try {
-      const [s, p, t] = await Promise.all([api.status(), api.perfis(), api.tabelas()]);
+      const [s, p, t, pr] = await Promise.all([api.status(), api.perfis(), api.tabelas(), api.produtos()]);
+      setProdutos(pr);
       setStatus(s);
       setPerfis(p);
       setTabelas(t);
@@ -38,6 +42,7 @@ export default function App() {
         </Toolbar>
         <Tabs value={aba} onChange={(_, v) => setAba(v)} textColor="inherit" indicatorColor="secondary" variant="scrollable" allowScrollButtonsMobile>
           <Tab label="Simulação" />
+          <Tab label={`Meus produtos${produtos.length ? ` (${produtos.length})` : ''}`} />
           <Tab label="Perfis CNPJ" />
           <Tab label="Tabelas de frete" />
           <Tab label="Integração" />
@@ -51,10 +56,11 @@ export default function App() {
             Tarifas, tabela de frete e perfil fiscal marcados como fictícios. Motivo: {status?.motivo}. Veja a aba “Integração” para usar suas credenciais.
           </Alert>
         )}
-        <Box hidden={aba !== 0}><Simulacao perfis={perfis} tabelas={tabelas} modoDemo={demo} /></Box>
-        {aba === 1 && <Perfis perfis={perfis} recarregar={recarregar} />}
-        {aba === 2 && <Tabelas tabelas={tabelas} recarregar={recarregar} />}
-        {aba === 3 && status && (
+        <Box hidden={aba !== 0}><Simulacao perfis={perfis} tabelas={tabelas} modoDemo={demo} produtoCarregado={carregar} onProdutoSalvo={recarregar} /></Box>
+        {aba === 1 && <Produtos produtos={produtos} recarregar={recarregar} simular={(p) => { setCarregar((c) => ({ p, n: (c?.n ?? 0) + 1 })); setAba(0); }} />}
+        {aba === 2 && <Perfis perfis={perfis} recarregar={recarregar} />}
+        {aba === 3 && <Tabelas tabelas={tabelas} recarregar={recarregar} />}
+        {aba === 4 && status && (
           <Box sx={{ maxWidth: 800 }}>
             <Typography variant="h6">Integração com o Mercado Livre</Typography>
             <Typography variant="body2" sx={{ my: 1 }}>Modo atual: <b>{demo ? 'demonstração' : 'produção'}</b> — {status.motivo}.</Typography>
